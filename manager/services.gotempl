@@ -1,0 +1,51 @@
+resolvers docker
+    nameserver dns1 127.0.0.11:53
+    resolve_retries 3
+    timeout resolve 1s
+    timeout retry   1s
+    hold other      10s
+    hold refused    10s
+    hold nx         10s
+    hold timeout    10s
+    hold valid      10s
+    hold obsolete   10s
+
+global
+    log          fd@2 local2
+    stats socket /var/run/haproxy.pid mode 600 expose-fd listeners level user
+
+    stats timeout 2m
+
+defaults
+    timeout connect 5s
+    timeout check 5s
+    timeout client 10m
+    timeout server 10m
+    log global
+    mode http
+    option httplog
+    retries 3
+    retry-on all-retryable-errors
+    option redispatch 1
+
+frontend proxy
+    bind *:80
+    option forwardfor except 127.0.0.1
+    option forwardfor header X-Real-IP
+    default_backend stats
+    {{range . -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
+    use_backend {{.Spec.Name}} if { path -i -m beg {{ index .Spec.Labels "ingress.path" }} }
+    {{end}}{{end}}
+
+{{range . -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
+backend {{.Spec.Name}}
+    balance {{  index .Spec.Labels "ingress.balance" }}
+    server-template {{.Spec.Name}}- 5 {{.Spec.Name}}:{{ index .Spec.Labels "ingress.port" }} resolvers docker init-addr libc,none
+{{end}}{{end}}
+
+backend stats
+    stats enable
+    stats uri /stats
+    stats refresh 15s
+    stats show-legends
+    stats show-node
