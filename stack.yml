@@ -11,8 +11,8 @@ services:
             ingress.default: |
                 timeout connect 5s
                 timeout check 5s
-                timeout client 10m
-                timeout server 10m
+                timeout client 2m
+                timeout server 2m
             ingress.global: |
                 # some globals
             ingress.frontend.default: |
@@ -34,11 +34,26 @@ services:
     app:
         image: nginx
         deploy:
-            labels: 
-                ingress.path: "/"
-                ingress.port: "80"
+            replicas: 2
+            labels:
+                                        # todo
+                ingress.frontend: ""    # use default if empty
+                ingress.host: ""        # only use acl if host is given
+                ingress.path: "/"       # only use acl if path is given
+                ingress.port: "80" 
                 ingress.backend: |
                     balance leastconn
-                    acl allowed_method method HEAD GET POST
+                    acl allowed_method method HEAD GET POST PUT
                     http-request deny unless allowed_method
+    foo:
+        image: nginx
+        deploy:
+            replicas: 2
+            labels:
+                ingress.path: "/foo/"
+                ingress.port: "80" 
+                ingress.backend: |
+                    balance roundrobin
+                    http-request set-path "%[path,regsub(^/foo/,/)]"
+
 
