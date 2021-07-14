@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"html/template"
 	"log"
 	"net/http"
@@ -11,12 +12,16 @@ import (
 )
 
 func main() {
+
+	templatPath := flag.String("template", "/src/haproxy.cfg.template", "path to template inside the container")
+	flag.Parse()
+
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
 	}
-	t := template.Must(template.ParseFiles("services.gotempl"))
+	t := template.Must(template.ParseFiles(*templatPath))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		services, err := cli.ServiceList(ctx, types.ServiceListOptions{})

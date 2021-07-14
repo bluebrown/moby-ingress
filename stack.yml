@@ -1,0 +1,21 @@
+version: "3.9"
+services: 
+    manager:
+        image: manager
+        command: --template /src/haproxy.cfg.template
+        volumes: 
+            -  /var/run/docker.sock:/var/run/docker.sock
+        ports:
+            - 8080:8080
+    lb:
+        image: lb
+        environment: 
+            MANAGER_ENDPOINT: http://manager:8080
+        ports:
+            - 3000:80
+    app:
+        image: nginx
+        deploy:
+            labels: 
+                ingress.path: "/"
+                ingress.port: "80"

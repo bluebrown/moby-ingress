@@ -2,8 +2,6 @@
 
 ## Run Example
 
-Start the boilerplate with make.
-
 ```shell
 make
 ```
@@ -14,8 +12,14 @@ Wait some time and use curl to fetch the nginx page.
 curl localhost:3000
 ```
 
-The dynamic configration is served by the manager.
+The dynamic configuration is served by the manager.
 
 ```shell
 curl localhost:8080
+```
+
+If you are done with testing use the clean command.
+
+```shell
+make clean
 ```
