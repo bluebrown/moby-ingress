@@ -24,9 +24,6 @@ defaults
 {{ index .ManagerInfo.Config.Labels "ingress.default" | indent 4 }}
 
 frontend default
-    bind *:80
-    option forwardfor except 127.0.0.1
-    option forwardfor header X-Real-IP
 {{ index .ManagerInfo.Config.Labels "ingress.frontend.default" | indent 4 }}
     {{range .Services -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
     {{ if eq $p "/" }}default_backend {{.Spec.Name}}
