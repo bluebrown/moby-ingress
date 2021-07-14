@@ -1,0 +1,21 @@
+{
+    "global": "spread-checks 15\nssl-default-bind-ciphers    ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256\nssl-default-bind-options    no-sslv3 no-tlsv10 no-tlsv11 no-tls-tickets\nssl-default-server-ciphers  ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256\nssl-default-server-options  no-sslv3 no-tlsv10 no-tlsv11 no-tls-tickets \n",
+    "default": "timeout connect 5s\ntimeout check 5s\ntimeout client 2m\ntimeout server 2m\nretries 1\nretry-on all-retryable-errors\noption redispatch 1\n",
+    "frontend": {
+        "default": "bind *:80\n# bind *:443 ssl crt /etc/certs/fullchain.pem\n# http-request redirect scheme https unless { ssl_fc }\noption forwardfor except 127.0.0.1\noption forwardfor header X-Real-IP\nhttp-request disable-l7-retry unless METH_GET\nhttp-response set-header Cache-Control \"max-age=0\"\nhttp-response set-header Strict-Transport-Security \"max-age=16000000; includeSubDomains; preload;\"\nhttp-response set-header X-Frame-Options \"'none'\"\nhttp-response set-header X-XSS-Protection \"1;mode=block\"\nhttp-response set-header X-Content-Type-Options \"nosniff\"\nhttp-response set-header X-Permitted-Cross-Domain-Policies \"'none'\"\nhttp-response set-header Referrer-Policy \"no-referrer-when-downgrade\"\nhttp-response set-header Content-Security-Policy \"frame-ancestors 'self'\"\nhttp-response set-header Feature-Policy \"fullscreen 'none'; microphone 'none'\"\n"
+    },
+    "backend": {
+        "my-stack_app": {
+            "port": "80",
+            "replicas": 2,
+            "frontend": "default",
+            "path": "/"
+        },
+        "my-stack_foo": {
+            "port": "80",
+            "replicas": 2,
+            "frontend": "default",
+            "path": "/foo/"
+        }
+    }
+}

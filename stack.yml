@@ -50,10 +50,8 @@ services:
         deploy:
             replicas: 2
             labels:
-                                        # todo
-                ingress.frontend: ""    # use default if empty
-                ingress.host: ""        # only use acl if host is given
-                ingress.path: "/"       # only use acl if path is given
+                ingress.frontend: "default" 
+                ingress.path: "/"
                 ingress.port: "80" 
                 ingress.backend: |
                     balance leastconn
@@ -65,6 +63,7 @@ services:
         deploy:
             replicas: 2
             labels:
+                ingress.frontend: "default" 
                 ingress.path: "/foo/"
                 ingress.port: "80" 
                 ingress.backend: |

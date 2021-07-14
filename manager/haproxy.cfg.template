@@ -1,3 +1,11 @@
+listen stats
+    bind *:4450
+    stats enable
+    stats uri /
+    stats refresh 15s
+    stats show-legends
+    stats show-node
+
 resolvers docker
     nameserver dns1 127.0.0.11:53
     resolve_retries 3
@@ -14,37 +22,31 @@ global
     log          fd@2 local2
     stats socket /var/run/haproxy.pid mode 600 expose-fd listeners level user
     stats timeout 2m
-{{ index .ManagerInfo.Config.Labels "ingress.global" | indent 4 }}
-
+{{ .Global | indent 4 }}
 
 defaults
     log global
     mode http
     option httplog
-{{ index .ManagerInfo.Config.Labels "ingress.default" | indent 4 }}
+{{ .Default | indent 4 }}
 
-frontend default
-{{ index .ManagerInfo.Config.Labels "ingress.frontend.default" | indent 4 }}
-    {{range .Services -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
-    {{ if eq $p "/" }}default_backend {{.Spec.Name}}
-    {{ else }}use_backend {{.Spec.Name}} if { path -i -m beg {{ index .Spec.Labels "ingress.path" }} }
-    {{end}}{{end}}{{end}}
+{{- $backends := .Backend -}}
+{{ range $frontend, $config := .Frontend }}
+frontend {{$frontend}}
+{{$config | indent 4}}
+    {{ range $back, $conf := $backends }}
+    {{- if eq $conf.Frontend $frontend -}}
+    {{ if eq $conf.Path "/" }}default_backend {{$back}}
+    {{ else }}use_backend {{$back}} if { path -i -m beg {{$conf.Path}} }
+    {{- end -}}
+    {{- end -}}
+    {{- end -}}
+{{end}}
 
-
-{{range .Services -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
-
-backend {{.Spec.Name }}
-{{ index .Spec.Labels "ingress.backend" | indent 4 }}
-    server-template {{.Spec.Name}}- {{ .Spec.Mode.Replicated.Replicas }} tasks.{{.Spec.Name}}:{{ index .Spec.Labels "ingress.port" }} resolvers docker init-addr libc,none check
-
-{{end}}{{end}}
-
-listen stats
-    bind *:4450
-    stats enable
-    stats uri /
-    stats refresh 15s
-    stats show-legends
-    stats show-node
+{{ range $backend, $config := .Backend }}
+backend {{$backend}}
+{{ $config.Backend | indent 4 }}
+    server-template {{ $backend }}- {{ $config.Replicas }} tasks.{{ $backend }}:{{ $config.Port }} resolvers docker init-addr libc,none check
+{{end}}
 
 {{println ""}}
