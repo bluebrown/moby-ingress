@@ -3,17 +3,19 @@ package main
 import (
 	"context"
 	"flag"
-	"html/template"
 	"log"
 	"net/http"
+	"strings"
+	"text/template"
 
+	"github.com/Masterminds/sprig"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
 
 func main() {
 
-	templatPath := flag.String("template", "/src/haproxy.cfg.template", "path to template inside the container")
+	templatPath := flag.String("template", "./haproxy.cfg.template", "path to template inside the container")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -21,7 +23,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	t := template.Must(template.ParseFiles(*templatPath))
+
+	parts := strings.Split(*templatPath, "/")
+	name := parts[len(parts)-1]
+	t := template.Must(template.New(name).Funcs(sprig.TxtFuncMap()).ParseFiles(*templatPath))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		services, err := cli.ServiceList(ctx, types.ServiceListOptions{})
@@ -29,7 +34,7 @@ func main() {
 			panic(err)
 		}
 
-		w.Header().Set("Content-Type", "application/text")
+		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		t.Execute(w, services)
 	})

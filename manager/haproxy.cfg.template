@@ -38,9 +38,11 @@ frontend proxy
     {{end}}{{end}}
 
 {{range . -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
-backend {{.Spec.Name}}
-    balance {{  index .Spec.Labels "ingress.balance" }}
+
+backend {{.Spec.Name }}
+{{ index .Spec.Labels "ingress.backend" | indent 4 }}
     server-template {{.Spec.Name}}- 5 {{.Spec.Name}}:{{ index .Spec.Labels "ingress.port" }} resolvers docker init-addr libc,none
+
 {{end}}{{end}}
 
 backend stats
@@ -49,3 +51,5 @@ backend stats
     stats refresh 15s
     stats show-legends
     stats show-node
+
+{{println ""}}

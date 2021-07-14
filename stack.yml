@@ -19,3 +19,15 @@ services:
             labels: 
                 ingress.path: "/"
                 ingress.port: "80"
+                ingress.backend: |
+                    balance leastconn
+                    http-response set-header Cache-Control "max-age=0"
+                    http-response set-header Strict-Transport-Security "max-age=16000000; includeSubDomains; preload;"
+                    http-response set-header X-Frame-Options "'none'"
+                    http-response set-header X-XSS-Protection "1;mode=block"
+                    http-response set-header X-Content-Type-Options "nosniff"
+                    http-response set-header X-Permitted-Cross-Domain-Policies "'none'"
+                    http-response set-header Referrer-Policy "no-referrer-when-downgrade"
+                    http-response set-header Content-Security-Policy "frame-ancestors 'self'"
+                    http-response set-header Feature-Policy "fullscreen 'none'; microphone 'none'"
+
