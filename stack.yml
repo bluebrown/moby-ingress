@@ -8,7 +8,7 @@ services:
         ports:
             - 8080:8080
         labels:
-            ingress.default: |
+            ingress.defaults: |
                 timeout connect 5s
                 timeout check 5s
                 timeout client 2m
@@ -50,7 +50,7 @@ services:
         deploy:
             replicas: 2
             labels:
-                ingress.frontend: "default" 
+                ingress.frontend: "default"
                 ingress.path: "/"
                 ingress.port: "80" 
                 ingress.backend: |

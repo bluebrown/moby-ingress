@@ -28,7 +28,7 @@ defaults
     log global
     mode http
     option httplog
-{{ .Default | indent 4 }}
+{{ .Defaults | indent 4 }}
 
 {{- $backends := .Backend -}}
 {{ range $frontend, $config := .Frontend }}
@@ -37,7 +37,7 @@ frontend {{$frontend}}
     {{ range $back, $conf := $backends }}
     {{- if eq $conf.Frontend $frontend -}}
     {{ if eq $conf.Path "/" }}default_backend {{$back}}
-    {{ else }}use_backend {{$back}} if { path -i -m beg {{$conf.Path}} }
+    {{ else }}use_backend {{ $back }} if { path -i -m beg {{ $conf.Path }} }
     {{- end -}}
     {{- end -}}
     {{- end -}}

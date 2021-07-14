@@ -137,7 +137,7 @@ type Backend struct {
 
 type ConfigData struct {
 	Global   string             `json:"global,omitempty"`
-	Default  string             `json:"default,omitempty"`
+	Defaults string             `json:"defaults,omitempty"`
 	Frontend map[string]string  `json:"frontend,omitempty"`
 	Backend  map[string]Backend `json:"backend,omitempty"`
 }
