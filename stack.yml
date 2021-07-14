@@ -30,7 +30,8 @@ services:
         environment: 
             MANAGER_ENDPOINT: http://manager:8080
         ports:
-            - 3000:80
+            - 3000:80 # ingress port
+            - 4450:4450 # stats page
     app:
         image: nginx
         deploy:
@@ -43,7 +44,8 @@ services:
                 ingress.port: "80" 
                 ingress.backend: |
                     balance leastconn
-                    acl allowed_method method HEAD GET POST PUT
+                    option httpchk GET /
+                    acl allowed_method method HEAD GET POST
                     http-request deny unless allowed_method
     foo:
         image: nginx
@@ -54,6 +56,7 @@ services:
                 ingress.port: "80" 
                 ingress.backend: |
                     balance roundrobin
+                    option httpchk GET /
                     http-request set-path "%[path,regsub(^/foo/,/)]"
 
 

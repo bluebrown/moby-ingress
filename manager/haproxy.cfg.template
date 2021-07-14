@@ -27,23 +27,24 @@ frontend default
     bind *:80
     option forwardfor except 127.0.0.1
     option forwardfor header X-Real-IP
-    default_backend stats
 {{ index .ManagerInfo.Config.Labels "ingress.frontend.default" | indent 4 }}
     {{range .Services -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
     use_backend {{.Spec.Name}} if { path -i -m beg {{ index .Spec.Labels "ingress.path" }} }
     {{end}}{{end}}
 
+
 {{range .Services -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
 
 backend {{.Spec.Name }}
 {{ index .Spec.Labels "ingress.backend" | indent 4 }}
-    server-template {{.Spec.Name}}- 5 tasks.{{.Spec.Name}}:{{ index .Spec.Labels "ingress.port" }} resolvers docker init-addr libc,none
+    server-template {{.Spec.Name}}- {{ .Spec.Mode.Replicated.Replicas }} tasks.{{.Spec.Name}}:{{ index .Spec.Labels "ingress.port" }} resolvers docker init-addr libc,none check
 
 {{end}}{{end}}
 
-backend stats
+listen stats
+    bind *:4450
     stats enable
-    stats uri /stats
+    stats uri /
     stats refresh 15s
     stats show-legends
     stats show-node
