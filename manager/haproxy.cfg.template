@@ -29,8 +29,9 @@ frontend default
     option forwardfor header X-Real-IP
 {{ index .ManagerInfo.Config.Labels "ingress.frontend.default" | indent 4 }}
     {{range .Services -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
-    use_backend {{.Spec.Name}} if { path -i -m beg {{ index .Spec.Labels "ingress.path" }} }
-    {{end}}{{end}}
+    {{ if eq $p "/" }}default_backend {{.Spec.Name}}
+    {{ else }}use_backend {{.Spec.Name}} if { path -i -m beg {{ index .Spec.Labels "ingress.path" }} }
+    {{end}}{{end}}{{end}}
 
 
 {{range .Services -}}{{- $p := index .Spec.Labels "ingress.path" -}}{{- if ne $p "" -}}
