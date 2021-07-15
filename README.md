@@ -4,8 +4,6 @@ The aim of the project is it to create dynamic ingress rules for swarm services 
 
 The manager service is responsible for generating a valid haproxy configuration file from the labels. The loadbalancer instances scrape the configuration periodically and reload the worker "hitless" if the content has changed.
 
-Currently it only works when deploying the services with swarm.
-
 ## Synopsis
 
 ```yml
@@ -63,6 +61,8 @@ some-app:
                 option httpchk GET /
                 http-request set-path "%[path,regsub(^/foo/,/)]"
 ```
+
+Currently it only works when deploying the *backend* services with swarm. The manager can be deployed with a normal container. This is because the labels for the manager are provided on container level while the backends are created from service definitions and their labels.
 
 > Note  
 > *Be careful which ports you publish in production*
