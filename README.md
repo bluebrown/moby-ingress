@@ -19,8 +19,6 @@ services:
             MANAGER_ENDPOINT: http://manager:8080/
             SCRAPE_INTERVAL: '60'
             STARTUP_DELAY: '5'
-        depends_on:
-            - manager
         ports:
             - 3000:80 # ingress port
             - 4450:4450 # stats page
