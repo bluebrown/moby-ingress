@@ -9,8 +9,8 @@ Currently it only works when deploying the services with swarm.
 ## Synopsis
 
 ```yml
-# the proxy service fetches the dynamic configuration
-# from the manager periodically
+# the lb service fetches the dynamic configuration,
+# from the manager endpoint, periodically
 loadbalancer:
     image: bluebrown/swarm-haproxy-loadbalancer
     environment: 
@@ -53,7 +53,7 @@ some-app:
         labels:
             # the application port inside the container
             ingress.port: "80"
-            # rules are merged with corresponding frontend
+            # rules are merged with the corresponding frontend rules
             ingress.frontend.default: |
                 use_backend {{ .Name }} if { path -i -m beg /foo/ }
             # backend snippet are added to the backend created from
