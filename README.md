@@ -4,8 +4,6 @@ The aim of this project is to allow writing haproxy configuration in docker-comp
 
 ## Synopsis
 
-*Be careful which ports you publish in production*
-
 ```yml
 # the proxy service fetches the dynamic configuration
 # from the manager periodically
@@ -45,17 +43,25 @@ manager:
 # The snippet will be merged with the frontend config from the
 # manager service
 some-app:
-    ...
+    image: nginx
     deploy:
+        replicas: 2
         labels:
-            ingress.port: "80" 
+            # the application port inside the container
+            ingress.port: "80"
+            # rules are merged with corresponding frontend
             ingress.frontend.default: |
                 use_backend {{ .Name }} if { path -i -m beg /foo/ }
+            # backend snippet are added to the backend created from
+            # this service definition
             ingress.backend: |
                 balance roundrobin
                 option httpchk GET /
                 http-request set-path "%[path,regsub(^/foo/,/)]"
 ```
+
+> Note  
+> *Be careful which ports you publish in production*
 
 ## Template
 
@@ -86,26 +92,48 @@ global
     log          fd@2 local2
     stats socket /var/run/haproxy.pid mode 600 expose-fd listeners level user
     stats timeout 2m
-{{ .Global | indent 4 }}
+    {{ .Global | indent 4 | trim }}
 
 defaults
     log global
     mode http
     option httplog
-{{ .Defaults | indent 4 }}
+    {{ .Defaults | indent 4 | trim }}{{ println "" }}
 
-{{ range $frontend, $config := .Frontend }}
+{{- range $frontend, $config := .Frontend }}
 frontend {{$frontend}}
-{{$config | indent 4}}
+    {{$config | indent 4 | trim }}
 {{ end }}
 
-{{ range $backend, $config := .Backend }}
+{{- range $backend, $config := .Backend }}
 backend {{$backend}}
-{{ $config.Backend | indent 4 }}
+    {{ $config.Backend | indent 4 | trim }}
     server-template {{ $backend }}- {{ $config.Replicas }} tasks.{{ $backend }}:{{ $config.Port }} resolvers docker init-addr libc,none check
 {{ end }}
 
-{{println ""}}
+{{ println ""}}
+```
+
+The data types passed into the template have the following format.
+
+```go
+type ConfigData struct {
+ Global   string             `json:"global,omitempty"`
+ Defaults string             `json:"defaults,omitempty"`
+ Backend  map[string]Backend `json:"backend,omitempty"`
+ // frontend contains merged snippet from backend
+ Frontend map[string]string  `json:"frontend,omitempty"`
+}
+
+type Backend struct {
+ Port     string            `json:"port,omitempty"`
+ Replicas uint64            `json:"replicas,omitempty"`
+ Backend  string            `json:"backend,omitempty"`
+ // frontend snippets are executed as template and merged
+ // with the frontend config from the ConfigData struct
+ // so its no returned as json and not really used in the template
+ Frontend map[string]string `json:"-"`
+}
 ```
 
 ### Update the template at runtime
@@ -132,4 +160,75 @@ The configuration can be fetched via the root endpoint of the manager service. T
 ```shell
 curl -i localhost:8080
 curl -i localhost:8080/json
+```
+
+### Example JSON response
+
+```json
+{
+    "global": "spread-checks 15\n",
+    "defaults": "timeout connect 5s\ntimeout check 5s\ntimeout client 2m\ntimeout server 2m\n",
+    "frontend": {
+        "default": "bind *:80\noption forwardfor except 127.0.0.1\noption forwardfor header X-Real-IP\nuse_backend my-stack_foo if { path -i -m beg /foo/ }\n"
+    },
+    "backend": {
+        "my-stack_foo": {
+            "port": "80",
+            "replicas": 2,
+            "backend": "balance roundrobin\noption httpchk GET /\nhttp-request set-path \"%[path,regsub(^/foo/,/)]\"\n"
+        }
+    }
+}
+```
+
+### Example Config Response
+
+```c
+listen stats
+    bind *:4450
+    stats enable
+    stats uri /
+    stats refresh 15s
+    stats show-legends
+    stats show-node
+
+resolvers docker
+    nameserver dns1 127.0.0.11:53
+    resolve_retries 3
+    timeout resolve 1s
+    timeout retry   1s
+    hold other      10s
+    hold refused    10s
+    hold nx         10s
+    hold timeout    10s
+    hold valid      10s
+    hold obsolete   10s
+
+global
+    log          fd@2 local2
+    stats socket /var/run/haproxy.pid mode 600 expose-fd listeners level user
+    stats timeout 2m
+    spread-checks 15
+
+defaults
+    log global
+    mode http
+    option httplog
+    timeout connect 5s
+    timeout check 5s
+    timeout client 2m
+    timeout server 2m
+
+frontend default
+    bind *:80
+    option forwardfor except 127.0.0.1
+    option forwardfor header X-Real-IP
+    use_backend my-stack_foo if { path -i -m beg /foo/ }
+
+backend my-stack_foo
+    balance roundrobin
+    option httpchk GET /
+    http-request set-path "%[path,regsub(^/foo/,/)]"
+    server-template my-stack_foo- 2 tasks.my-stack_foo:80 resolvers docker init-addr libc,none check
+
 ```

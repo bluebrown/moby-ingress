@@ -22,23 +22,23 @@ global
     log          fd@2 local2
     stats socket /var/run/haproxy.pid mode 600 expose-fd listeners level user
     stats timeout 2m
-{{ .Global | indent 4 }}
+    {{ .Global | indent 4 | trim }}
 
 defaults
     log global
     mode http
     option httplog
-{{ .Defaults | indent 4 }}
+    {{ .Defaults | indent 4 | trim }}{{ println "" }}
 
-{{ range $frontend, $config := .Frontend }}
+{{- range $frontend, $config := .Frontend }}
 frontend {{$frontend}}
-{{$config | indent 4}}
+    {{$config | indent 4 | trim }}
 {{ end }}
 
-{{ range $backend, $config := .Backend }}
+{{- range $backend, $config := .Backend }}
 backend {{$backend}}
-{{ $config.Backend | indent 4 }}
+    {{ $config.Backend | indent 4 | trim }}
     server-template {{ $backend }}- {{ $config.Replicas }} tasks.{{ $backend }}:{{ $config.Port }} resolvers docker init-addr libc,none check
 {{ end }}
 
-{{println ""}}
+{{ println ""}}
