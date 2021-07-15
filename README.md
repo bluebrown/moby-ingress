@@ -74,6 +74,8 @@ services:
 
 ```
 
+See the [official haproxy documentation](https://www.haproxy.com/blog/the-four-essential-sections-of-an-haproxy-configuration/) to learn more about haproxy configuration. The settings are identical to the official haproxy version.
+
 Currently it only works when deploying the *backend* services with swarm. The manager can be deployed with a normal container. This is because the labels for the manager are provided on container level while the backends are created from service definitions and their labels.
 
 > Note  
