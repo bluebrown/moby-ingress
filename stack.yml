@@ -1,5 +1,12 @@
 version: "3.9"
-services: 
+services:
+    lb:
+        image: lb
+        environment: 
+            MANAGER_ENDPOINT: http://manager:8080
+        ports:
+            - 3000:80 # ingress port
+            - 4450:4450 # stats page
     manager:
         image: manager
         command: --template /src/haproxy.cfg.template
@@ -38,13 +45,6 @@ services:
                 http-response set-header Referrer-Policy "no-referrer-when-downgrade"
                 http-response set-header Content-Security-Policy "frame-ancestors 'self'"
                 http-response set-header Feature-Policy "fullscreen 'none'; microphone 'none'"
-    lb:
-        image: lb
-        environment: 
-            MANAGER_ENDPOINT: http://manager:8080
-        ports:
-            - 3000:80 # ingress port
-            - 4450:4450 # stats page
     app:
         image: nginx
         deploy:

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -89,6 +90,21 @@ func main() {
 		conf := createConfigData(r.Context(), *cli)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(conf.toJsonBytes())
+	})
+
+	http.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			return
+		}
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		if err := ioutil.WriteFile(*templatPath, body, 0644); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		t = template.Must(template.New(name).Funcs(sprig.TxtFuncMap()).ParseFiles(*templatPath))
+		w.WriteHeader(http.StatusCreated)
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))

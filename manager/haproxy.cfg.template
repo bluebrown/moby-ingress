@@ -33,12 +33,12 @@ defaults
 {{ range $frontend, $config := .Frontend }}
 frontend {{$frontend}}
 {{$config | indent 4}}
-{{end}}
+{{ end }}
 
 {{ range $backend, $config := .Backend }}
 backend {{$backend}}
 {{ $config.Backend | indent 4 }}
     server-template {{ $backend }}- {{ $config.Replicas }} tasks.{{ $backend }}:{{ $config.Port }} resolvers docker init-addr libc,none check
-{{end}}
+{{ end }}
 
 {{println ""}}
