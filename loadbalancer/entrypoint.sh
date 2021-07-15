@@ -60,4 +60,4 @@ fi
 scrape_config "$MANAGER_ENDPOINT" "${SCRAPE_INTERVAL:=60}" &
 
 # exec original entrypoint to make it pid 1
-exec haproxy -W -db -f haproxy.cfg
+exec docker-entrypoint.sh "$@"
