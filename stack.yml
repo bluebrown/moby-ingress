@@ -81,5 +81,3 @@ services:
                     balance roundrobin
                     option httpchk GET /
                     http-request set-path "%[path,regsub(^/foo/,/)]"
-
-

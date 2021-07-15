@@ -2,7 +2,6 @@
 
 set -e
 
-
 scrape_config()
 {
     # take the inital checksum
@@ -60,11 +59,8 @@ else
     cp previous.cfg haproxy.cfg
 fi
 
-
-
 # run task in background  every minute to update config and restart if needed proxy
 scrape_config "$MANAGER_ENDPOINT" "${SCRAPE_INTERVAL:=60}" &
 
 # exec original entrypoint to make it pid 1
 exec haproxy -W -db -f haproxy.cfg
-
