@@ -1,4 +1,4 @@
-# Docker Swarm Haproxy Manager
+# Docker Swarm Haproxy Ingress Controller
 
 The aim of this project is to allow writing haproxy configuration in docker-compose.yml files. Currently it only works when deploying the services with swarm.
 
