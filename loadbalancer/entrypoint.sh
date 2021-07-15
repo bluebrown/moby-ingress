@@ -2,6 +2,7 @@
 
 set -e
 
+
 scrape_config()
 {
     # take the inital checksum
@@ -38,7 +39,7 @@ scrape_config()
             # if file has been successfully fetched, 
             # has a different checksum and is valid,
             # reload the worker
-           kill -s SIGUSR2 1
+            kill -s SIGUSR2 1
         done
 }
 
@@ -49,15 +50,21 @@ cp haproxy.cfg previous.cfg
 sleep "${STARTUP_DELAY:=5}"
 
 # fetch the first config or use the backup
-curl -s -f "${MANAGER_ENDPOINT:=http://manager:8080}" > haproxy.cfg
-if ! haproxy -c -f haproxy.cfg;
+if curl -s -f "${MANAGER_ENDPOINT:=http://manager:8080}" > haproxy.cfg;
 then
+    if ! haproxy -c -f haproxy.cfg;
+        then
+            cp previous.cfg haproxy.cfg
+fi
+else
     cp previous.cfg haproxy.cfg
 fi
+
+
 
 # run task in background  every minute to update config and restart if needed proxy
 scrape_config "$MANAGER_ENDPOINT" "${SCRAPE_INTERVAL:=60}" &
 
 # exec original entrypoint to make it pid 1
-exec docker-entrypoint.sh haproxy -f /usr/local/etc/haproxy/haproxy.cfg
+exec haproxy -W -db -f haproxy.cfg
 
