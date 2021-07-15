@@ -20,7 +20,7 @@ defaults
     log global
     mode http
     option httplog
-    {{ .Defaults | indent 4 | trim }}
+    {{ .Defaults | indent 4 | trim }} 
 
 listen stats
     bind *:4450
