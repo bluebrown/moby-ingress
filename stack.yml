@@ -50,9 +50,13 @@ services:
         deploy:
             replicas: 2
             labels:
-                ingress.frontend: "default"
-                ingress.path: "/"
+                # the application port inside the container
                 ingress.port: "80" 
+                # rules are merged with corresponding frontend
+                ingress.frontend.default: | 
+                    default_backend {{ .Name }} 
+                # backend snippet are added to the backend created from
+                # this service definition
                 ingress.backend: |
                     balance leastconn
                     option httpchk GET /
@@ -63,9 +67,9 @@ services:
         deploy:
             replicas: 2
             labels:
-                ingress.frontend: "default" 
-                ingress.path: "/foo/"
                 ingress.port: "80" 
+                ingress.frontend.default: |
+                    use_backend {{ .Name }} if { path -i -m beg /foo/ }
                 ingress.backend: |
                     balance roundrobin
                     option httpchk GET /

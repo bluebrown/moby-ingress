@@ -30,17 +30,9 @@ defaults
     option httplog
 {{ .Defaults | indent 4 }}
 
-{{- $backends := .Backend -}}
 {{ range $frontend, $config := .Frontend }}
 frontend {{$frontend}}
 {{$config | indent 4}}
-    {{ range $back, $conf := $backends }}
-    {{- if eq $conf.Frontend $frontend -}}
-    {{ if eq $conf.Path "/" }}default_backend {{$back}}
-    {{ else }}use_backend {{ $back }} if { path -i -m beg {{ $conf.Path }} }
-    {{- end -}}
-    {{- end -}}
-    {{- end -}}
 {{end}}
 
 {{ range $backend, $config := .Backend }}

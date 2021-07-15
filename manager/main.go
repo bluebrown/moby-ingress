@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -11,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig"
+	"github.com/bluebrown/labelparser"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/mitchellh/mapstructure"
@@ -29,20 +31,33 @@ func createConfigData(ctx context.Context, cli client.Client) ConfigData {
 	if err != nil {
 		panic(err)
 	}
-	c := ConfigMap{}
-	c = parseLabels(info.Config.Labels, c)
+	c := map[string]interface{}{}
+	labelparser.Parse(info.Config.Labels, &c)
+
 	if val, ok := c["ingress"]; ok {
 		mapstructure.Decode(val, &conf)
 	}
 
 	for _, svc := range services {
-		c := ConfigMap{}
-		c = parseLabels(svc.Spec.Labels, c)
-		if val, ok := c["ingress"]; ok {
+
+		BackendName := svc.Spec.Name
+
+		c := map[string]interface{}{}
+		labelparser.Parse(svc.Spec.Labels, &c)
+		if configMap, ok := c["ingress"]; ok {
 			be := Backend{}
-			mapstructure.Decode(val, &be)
+			mapstructure.Decode(configMap, &be)
 			be.Replicas = *svc.Spec.Mode.Replicated.Replicas
-			conf.Backend[svc.Spec.Name] = be
+			for name, snippet := range be.Frontend {
+				if _, ok := conf.Frontend[name]; ok {
+					tmpl := template.Must(template.New("backend").Parse(snippet))
+					data := new(bytes.Buffer)
+					tmpl.Execute(data, struct{ Name string }{Name: BackendName})
+					conf.Frontend[name] += data.String()
+				}
+			}
+
+			conf.Backend[BackendName] = be
 		}
 	}
 
@@ -80,59 +95,13 @@ func main() {
 
 }
 
-func walk(parts []string, val string, conf ConfigMap) {
-
-	// if its the last part
-	// assign the value to the key in the map
-	if len(parts) == 1 {
-		if oldval, ok := conf[parts[0]]; ok {
-			switch v := oldval.(type) {
-			case ConfigMap:
-				v[parts[0]] = val
-			}
-		} else {
-			conf[parts[0]] = val
-		}
-		return
-	}
-
-	// create map at part if not exists
-	if _, ok := conf[parts[0]]; !ok {
-		c := ConfigMap{}
-		conf[parts[0]] = c
-	}
-
-	// it can be that c is not a map here but a string
-	// in that case i should wrap c in a new map
-	switch v := conf[parts[0]].(type) {
-	case string:
-		c := ConfigMap{}
-		conf[parts[0]] = c
-		conf[parts[0]].(ConfigMap)[parts[0]] = v
-	}
-
-	// use current part conf map as next conf
-	c := conf[parts[0]].(ConfigMap)
-
-	walk(parts[1:], val, c)
-}
-
-func parseLabels(labels map[string]string, conf ConfigMap) ConfigMap {
-	for k, v := range labels {
-		walk(strings.Split(k, "."), v, conf)
-	}
-	return conf
-}
-
-type ConfigMap map[string]interface{}
-
 type Backend struct {
-	Port     string `json:"port,omitempty"`
-	Replicas uint64 `json:"replicas,omitempty"`
-	Frontend string `json:"frontend,omitempty"`
-	Path     string `json:"path,omitempty"`
-	Host     string `json:"host,omitempty"`
-	Backend  string `json:"backend,omitempty"`
+	Port     string            `json:"port,omitempty"`
+	Replicas uint64            `json:"replicas,omitempty"`
+	Frontend map[string]string `json:"-"` // should remove from here and merge into frontend
+	Path     string            `json:"path,omitempty"`
+	Host     string            `json:"host,omitempty"`
+	Backend  string            `json:"backend,omitempty"`
 }
 
 type ConfigData struct {
