@@ -46,17 +46,17 @@ scrape_config()
 cp haproxy.cfg previous.cfg
 
 # sleep a bit to wait for manager
-sleep 10
+sleep "${STARTUP_DELAY:=10}"
 
 # fetch the first config or use the backup
-curl -s -f "$MANAGER_ENDPOINT" > haproxy.cfg
+curl -s -f "${MANAGER_ENDPOINT:=http://manager:8080}" > haproxy.cfg
 if ! haproxy -c -f haproxy.cfg;
 then
     cp previous.cfg haproxy.cfg
 fi
 
 # run task in background  every minute to update config and restart if needed proxy
-scrape_config "$MANAGER_ENDPOINT" 60 &
+scrape_config "$MANAGER_ENDPOINT" "${SCRAPE_INTERVAL:=60}" &
 
 # exec original entrypoint to make it pid 1
 exec docker-entrypoint.sh haproxy -f /usr/local/etc/haproxy/haproxy.cfg
