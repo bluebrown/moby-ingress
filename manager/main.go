@@ -29,7 +29,10 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		conf := CreateConfigData(r.Context(), *cli)
 		w.Header().Set("Content-Type", "text/plain")
-		t.Execute(w, conf)
+		err := t.Execute(w, conf)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	})
 
 	http.HandleFunc("/json", func(w http.ResponseWriter, r *http.Request) {
