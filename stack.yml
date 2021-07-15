@@ -16,6 +16,11 @@ services:
             -  /var/run/docker.sock:/var/run/docker.sock
         ports:
             - 8080:8080
+        deploy:
+            placement:
+                constraints:
+                    # needs to be on a manager node to read the services
+                    - "node.role==manager"
         labels:
             ingress.global: |
                 spread-checks 15

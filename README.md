@@ -11,8 +11,11 @@ The manager service is responsible for generating a valid haproxy configuration 
 # from the manager endpoint, periodically
 loadbalancer:
     image: bluebrown/swarm-haproxy-loadbalancer
+    # default values for env vars are below
     environment: 
-        MANAGER_ENDPOINT: http://manager:8080
+        MANAGER_ENDPOINT: http://manager:8080/
+        SCRAPE_INTERVAL: '60'
+        STARTUP_DELAY: '5'
     depends_on:
         - manager
     ports:
@@ -39,6 +42,11 @@ manager:
             timeout server 2m
         ingress.frontend.default: |
             bind *:80
+    deploy:
+        placement:
+            constraints:
+                # needs to be on a manager node to read the services
+                - "node.role==manager"
 
 # each app service defines its own backend config
 # and can provide a frontend snippet for 1 or more frontend.

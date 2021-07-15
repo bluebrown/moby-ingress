@@ -46,7 +46,7 @@ scrape_config()
 cp haproxy.cfg previous.cfg
 
 # sleep a bit to wait for manager
-sleep "${STARTUP_DELAY:=10}"
+sleep "${STARTUP_DELAY:=5}"
 
 # fetch the first config or use the backup
 curl -s -f "${MANAGER_ENDPOINT:=http://manager:8080}" > haproxy.cfg
