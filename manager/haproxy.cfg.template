@@ -1,11 +1,3 @@
-listen stats
-    bind *:4450
-    stats enable
-    stats uri /
-    stats refresh 15s
-    stats show-legends
-    stats show-node
-
 resolvers docker
     nameserver dns1 127.0.0.11:53
     resolve_retries 3
@@ -28,7 +20,15 @@ defaults
     log global
     mode http
     option httplog
-    {{ .Defaults | indent 4 | trim }}{{ println "" }}
+    {{ .Defaults | indent 4 | trim }}
+
+listen stats
+    bind *:4450
+    stats enable
+    stats uri /
+    stats refresh 15s
+    stats show-legends
+    stats show-node {{ println "" }}
 
 {{- range $frontend, $config := .Frontend }}
 frontend {{$frontend}}

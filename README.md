@@ -68,14 +68,6 @@ some-app:
 The labels are parsed and passed into a haproxy.cfg template. The default template looks like the below.
 
 ```go
-listen stats
-    bind *:4450
-    stats enable
-    stats uri /
-    stats refresh 15s
-    stats show-legends
-    stats show-node
-
 resolvers docker
     nameserver dns1 127.0.0.11:53
     resolve_retries 3
@@ -98,7 +90,15 @@ defaults
     log global
     mode http
     option httplog
-    {{ .Defaults | indent 4 | trim }}{{ println "" }}
+    {{ .Defaults | indent 4 | trim }}
+
+listen stats
+    bind *:4450
+    stats enable
+    stats uri /
+    stats refresh 15s
+    stats show-legends
+    stats show-node {{ println "" }}
 
 {{- range $frontend, $config := .Frontend }}
 frontend {{$frontend}}
@@ -184,14 +184,6 @@ curl -i localhost:8080/json
 ### Example Config Response
 
 ```c
-listen stats
-    bind *:4450
-    stats enable
-    stats uri /
-    stats refresh 15s
-    stats show-legends
-    stats show-node
-
 resolvers docker
     nameserver dns1 127.0.0.11:53
     resolve_retries 3
@@ -218,6 +210,14 @@ defaults
     timeout check 5s
     timeout client 2m
     timeout server 2m
+
+listen stats
+    bind *:4450
+    stats enable
+    stats uri /
+    stats refresh 15s
+    stats show-legends
+    stats show-node 
 
 frontend default
     bind *:80
