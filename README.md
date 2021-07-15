@@ -1,6 +1,10 @@
 # Docker Swarm Haproxy Ingress Controller
 
-The aim of this project is to allow writing haproxy configuration in docker-compose.yml files. Currently it only works when deploying the services with swarm.
+The aim of the project is it to create dynamic ingress rules for swarm services through labels. This allows to create new services and change the haproxy configuration without any downtime or container rebuild.
+
+The manager service is responsible for generating a valid haproxy configuration file from the labels. The loadbalancer instances scrape the configuration periodically and reload the worker "hitless" if the content has changed.
+
+Currently it only works when deploying the services with swarm.
 
 ## Synopsis
 
