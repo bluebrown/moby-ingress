@@ -7,8 +7,8 @@ The aim of this project is to allow writing haproxy configuration in docker-comp
 ```yml
 # the proxy service fetches the dynamic configuration
 # from the manager periodically
-haproxy:
-    image: bluebrown/swarm-ingress-haproxy
+loadbalancer:
+    image: bluebrown/swarm-haproxy-loadbalancer
     environment: 
         MANAGER_ENDPOINT: http://manager:8080
     depends_on:
@@ -19,7 +19,7 @@ haproxy:
 
 # the manager service defines global defaults and frontend configs
 manager:
-    image: bluebrown/swarm-ingress-manager
+    image: bluebrown/swarm-haproxy-manager
     # default template path, this is not required
     # but can be useful when mounting a config file as volume
     command: --template /src/haproxy.cfg.template 
