@@ -30,13 +30,13 @@ manager:
     ports:
         - 8080:8080
     labels:
+        ingress.global: |
+            spread-checks 15
         ingress.defaults: |
             timeout connect 5s
             timeout check 5s
             timeout client 2m
             timeout server 2m
-        ingress.global: |
-            spread-checks 15
         ingress.frontend.default: |
             bind *:80
 
@@ -124,21 +124,19 @@ The data types passed into the template have the following format.
 type ConfigData struct {
  Global   string             `json:"global,omitempty"`
  Defaults string             `json:"defaults,omitempty"`
- Backend  map[string]Backend `json:"backend,omitempty"`
- // frontend contains merged snippet from backend
  Frontend map[string]string  `json:"frontend,omitempty"`
+ Backend  map[string]Backend `json:"backend,omitempty"`
 }
 
 type Backend struct {
  Port     string            `json:"port,omitempty"`
  Replicas uint64            `json:"replicas,omitempty"`
- Backend  string            `json:"backend,omitempty"`
- // frontend snippets are executed as template and merged
- // with the frontend config from the ConfigData struct
- // so its no returned as json and not really used in the template
  Frontend map[string]string `json:"-"`
+ Backend  string            `json:"backend,omitempty"`
 }
 ```
+
+Frontend snippets in the backend struct are executed as template and merged with the frontend config from the ConfigData struct. That is why it is not returned as json and not directly used in the template.
 
 ### Update the template at runtime
 
