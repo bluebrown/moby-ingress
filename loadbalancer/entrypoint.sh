@@ -51,10 +51,7 @@ sleep "${STARTUP_DELAY:=5}"
 # fetch the first config or use the backup
 if curl -s -f "${MANAGER_ENDPOINT:=http://manager:8080}" > haproxy.cfg;
 then
-    if ! haproxy -c -f haproxy.cfg;
-        then
-            cp previous.cfg haproxy.cfg
-fi
+   haproxy -c -f haproxy.cfg || cp previous.cfg haproxy.cfg
 else
     cp previous.cfg haproxy.cfg
 fi
