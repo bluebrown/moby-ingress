@@ -1,7 +1,7 @@
 version: "3.9"
 services:
     loadbalancer:
-        image: swarm-haproxy-loadbalancer
+        image: bluebrown/swarm-haproxy-loadbalancer
         environment: 
             MANAGER_ENDPOINT: http://manager:8080/
             SCRAPE_INTERVAL: '25'
@@ -10,7 +10,7 @@ services:
             - 3000:80 # ingress port
             - 4450:4450 # stats page
     manager:
-        image: swarm-haproxy-manager
+        image: bluebrown/swarm-haproxy-manager
         command: --template /src/haproxy.cfg.template
         volumes: 
             -  /var/run/docker.sock:/var/run/docker.sock
@@ -81,15 +81,3 @@ services:
                     balance roundrobin
                     option httpchk GET /
                     http-request set-path "%[path,regsub(^/foo/,/)]"
-    bar:
-        image: nginx
-        deploy:
-            replicas: 2
-            labels:
-                ingress.port: "80" 
-                ingress.frontend.default: |
-                    use_backend {{ .Name }} if { path -i -m beg /bar/ }
-                ingress.backend: |
-                    balance roundrobin
-                    option httpchk GET /
-                    http-request set-path "%[path,regsub(^/bar/,/)]"
