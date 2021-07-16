@@ -1,45 +1,41 @@
 #!/bin/sh
 
-set -e
+set -ex
+
+fetch_config()
+{
+    # fetch config
+    if ! curl -s -f "$1" > new.cfg;
+    then
+        return 1
+    fi
+    # compare checksums
+    if [ "$(md5sum haproxy.cfg | cut -d ' ' -f 1)" = "$(md5sum new.cfg | cut -d ' ' -f 1)" ]
+    then 
+        return 2
+    fi
+    # validate
+    if ! haproxy -c -f new.cfg;
+    then
+        return 3
+    fi
+    # use valid file once all checks are passed
+    cp new.cfg haproxy.cfg
+    return 0
+}
 
 scrape_config()
 {
-    # take the inital checksum
-    sum="$(md5sum haproxy.cfg)"
-
     while :
-        do
-            # sleep until next iteration
-            sleep "$2"
-
-            # try to fetch the config
-            if ! curl -s -f "$1" > haproxy.cfg;
-            then
-                cp previous.cfg haproxy.cfg
-                continue
-            fi
-
-            # compare check sums
-            old_sum="$sum"
-            sum="$(md5sum haproxy.cfg)"
-            if [ "$old_sum" = "$sum" ]
-            then 
-                continue
-            fi
-
-            # test if file is valid
-            if ! haproxy -c -f haproxy.cfg;
-            then
-                cp previous.cfg haproxy.cfg
-                sum="$old_sum"
-                continue
-            fi
-
-            # if file has been successfully fetched, 
-            # has a different checksum and is valid,
-            # reload the worker
+    do
+        # sleep until next iteration
+        sleep "$2"
+        if fetch_config "$1";
+        then
             kill -s SIGUSR2 1
-        done
+        fi
+        # reload worker
+    done
 }
 
 # make a backup
@@ -49,12 +45,7 @@ cp haproxy.cfg previous.cfg
 sleep "${STARTUP_DELAY:=5}"
 
 # fetch the first config or use the backup
-if curl -s -f "${MANAGER_ENDPOINT:=http://manager:8080}" > haproxy.cfg;
-then
-   haproxy -c -f haproxy.cfg || cp previous.cfg haproxy.cfg
-else
-    cp previous.cfg haproxy.cfg
-fi
+fetch_config "${MANAGER_ENDPOINT:=http://manager:8080}" || true
 
 # run task in background  every minute to update config and restart if needed proxy
 scrape_config "$MANAGER_ENDPOINT" "${SCRAPE_INTERVAL:=60}" &
