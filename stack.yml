@@ -81,15 +81,3 @@ services:
                     balance roundrobin
                     option httpchk GET /
                     http-request set-path "%[path,regsub(^/foo/,/)]"
-    bar:
-        image: nginx
-        deploy:
-            replicas: 2
-            labels:
-                ingress.port: "80" 
-                ingress.frontend.default: |
-                    use_backend {{ .Name }} if { path -i -m beg /bar/ }
-                ingress.backend: |
-                    balance roundrobin
-                    option httpchk GET /
-                    http-request set-path "%[path,regsub(^/bar/,/)]"
