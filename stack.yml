@@ -3,7 +3,7 @@ services:
     loadbalancer:
         image: swarm-haproxy-loadbalancer
         environment: 
-            MANAGER_ENDPOINT: http://manager:8080/
+            MANAGER_ENDPOINT: http://manager:8080/json
             SCRAPE_INTERVAL: '25'
             STARTUP_DELAY: '5'
         ports:
