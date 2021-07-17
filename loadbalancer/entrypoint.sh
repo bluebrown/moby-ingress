@@ -44,7 +44,7 @@ sleep "${STARTUP_DELAY:=5}"
 # try to fetch the first config or use the default
 fetch_config "${MANAGER_ENDPOINT:=http://manager:8080}" || true
 
-# run task in background  every minute to update config and restart if needed proxy
+# run task in background every n seconds to update config and restart if needed proxy
 scrape_config "$MANAGER_ENDPOINT" "${SCRAPE_INTERVAL:=60}" &
 
 # exec original entrypoint to make it pid 1
