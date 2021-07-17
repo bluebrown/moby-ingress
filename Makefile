@@ -3,7 +3,7 @@ stack: build
 
 build:
 	docker build -t swarm-haproxy-manager manager/
-	docker build -t swarm-haproxy-loadbalancer loadbalancer/
+	docker build -t swarm-haproxy-loadbalancer hapi/
 
 clean:
 	docker stack rm my-stack || true
