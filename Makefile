@@ -8,7 +8,6 @@ build:
 clean:
 	docker stack rm my-stack || true
 
-
 test:
 	docker service create \
 		--label ingress.port=80 \

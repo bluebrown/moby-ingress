@@ -11,3 +11,4 @@ WORKDIR /usr/local/etc/haproxy/
 COPY *.cfg /usr/local/etc/haproxy/
 COPY *.sh  /usr/local/bin/
 
+# TODO: use a non-root user

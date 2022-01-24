@@ -16,6 +16,7 @@ type Backend struct {
 	Backend  string            `json:"backend,omitempty"`
 }
 
+// TODO: handle potential errors
 func (c ConfigData) ToJsonBytes() []byte {
 	b, _ := json.Marshal(c)
 	return b
