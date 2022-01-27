@@ -2,13 +2,13 @@
 
 ## TODO
 
-- Improve test setup
-- handle errors on manager
-- use multi staging and non root user
-- allow to use manager with compose
-- implement config caching
-- use port from docker client if ingress port is not specified
-- use ingress class to filter
+- [ ] Improve test setup
+- [x] handle errors on manager
+- [ ] use multi staging and non root user
+- [ ] allow to use manager with compose
+- [ ] implement config caching
+- [ ] use port from docker client if ingress port is not specified
+- [x] use ingress class to filter
 
 ## Questions
 

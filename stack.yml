@@ -13,6 +13,8 @@ services:
 
   manager:
     image: swarm-haproxy-manager
+    # this is the default template path. the flag is only set here
+    # to show how to override the default template path
     command: --template templates/haproxy.cfg.template
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
@@ -39,13 +41,11 @@ services:
         option redispatch 1
       ingress.frontend.default: |
         bind *:80
-        # bind *:443 ssl crt /etc/certs/fullchain.pem
-        # http-request redirect scheme https unless { ssl_fc }
         option forwardfor except 127.0.0.1
         option forwardfor header X-Real-IP
         http-request disable-l7-retry unless METH_GET
 
-  app_a:
+  app:
     image: nginx
     deploy:
       replicas: 2
@@ -66,17 +66,3 @@ services:
           option httpchk GET /
           acl allowed_method method HEAD GET POST
           http-request deny unless allowed_method
-
-  app_b:
-    image: nginx
-    deploy:
-      replicas: 2
-      labels:
-        ingress.class: haproxy
-        ingress.port: "80"
-        ingress.frontend.default: |
-          use_backend {{ .Name }} if { path -i -m beg /foo/ }
-        ingress.backend: |
-          balance roundrobin
-          option httpchk GET /
-          http-request set-path "%[path,regsub(^/foo/,/)]"

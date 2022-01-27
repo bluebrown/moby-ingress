@@ -10,29 +10,30 @@ The manager service is responsible for generating a valid haproxy configuration 
 version: "3.9"
 
 services:
-  # the lb service fetches the dynamic configuration,
-  # from the manager endpoint, periodically
   loadbalancer:
-    image: bluebrown/swarm-haproxy-loadbalancer
-    # default values for env vars are below
+    image: swarm-haproxy-loadbalancer
     environment:
       MANAGER_ENDPOINT: http://manager:8080/
-      SCRAPE_INTERVAL: "60"
+      SCRAPE_INTERVAL: "25"
       STARTUP_DELAY: "5"
     ports:
-      - 3000:80   # http ingress port as specified in the default frontend
-      - 4450:4450 # stats page as specified in the default template
+      - 3000:80 # ingress port
+      - 4450:4450 # stats page
 
-  # the manager service defines global defaults and frontend configs
   manager:
-    image: bluebrown/swarm-haproxy-manager
-    # default template path, this is not required
-    # but can be useful when mounting a config file as volume
-    command: --template /src/haproxy.cfg.template
+    image: swarm-haproxy-manager
+    # this is the default template path. the flag is only set here
+    # to show how to override the default template path
+    command: --template templates/haproxy.cfg.template
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:rw
     ports:
       - 8080:8080
+    deploy:
+      placement:
+        constraints:
+          # needs to be on a manager node to read the services
+          - "node.role==manager"
     labels:
       # if the ingress class is provided the services are filtered by the ingress class
       # otherwise all services are checked
@@ -44,36 +45,38 @@ services:
         timeout check 5s
         timeout client 2m
         timeout server 2m
+        retries 1
+        retry-on all-retryable-errors
+        option redispatch 1
       ingress.frontend.default: |
         bind *:80
-    deploy:
-      placement:
-        constraints:
-          # needs to be on a manager node to read the services
-          - "node.role==manager"
+        # bind *:443 ssl crt /etc/certs/fullchain.pem
+        # http-request redirect scheme https unless { ssl_fc }
+        option forwardfor except 127.0.0.1
+        option forwardfor header X-Real-IP
+        http-request disable-l7-retry unless METH_GET
 
-  # each app service defines its own backend config
-  # and can provide a frontend snippet for 1 or more frontend.
-  # The snippet will be merged with the frontend config from the
-  # manager service
-  some-app:
+  app:
     image: nginx
     deploy:
       replicas: 2
       labels:
         # the ingress class of the manager
         ingress.class: haproxy
-        # the application port inside the container
+        # the application port inside the container,
+        # the first private port is used if not specified
         ingress.port: "80"
-        # rules are merged with the corresponding frontend rules
+        # rules are merged with corresponding frontend
+        # the service name is used available in go template format
         ingress.frontend.default: |
-          use_backend {{ .Name }} if { path -i -m beg /foo/ }
+          default_backend {{ .Name }}
         # backend snippet are added to the backend created from
         # this service definition
         ingress.backend: |
-          balance roundrobin
+          balance leastconn
           option httpchk GET /
-          http-request set-path "%[path,regsub(^/foo/,/)]"
+          acl allowed_method method HEAD GET POST
+          http-request deny unless allowed_method
 ```
 
 See the [official haproxy documentation](https://www.haproxy.com/blog/the-four-essential-sections-of-an-haproxy-configuration/) to learn more about haproxy configuration. The settings are identical to the official haproxy version.
@@ -134,14 +137,17 @@ backend {{$backend}}
 {{ println ""}}
 ```
 
-The data types passed into the template have the following format.
+The data types passed into the template have the following format. The ingressClass is used to filter services. That way it is possible to run the separate stacks with separate controllers and a different ingress class if required.
+
+Frontend snippets in the backend struct are executed as template and merged with the frontend config from the ConfigData struct. That is why it is not returned as json and not directly used in the template.
 
 ```go
 type ConfigData struct {
- Global   string             `json:"global,omitempty"`
- Defaults string             `json:"defaults,omitempty"`
- Frontend map[string]string  `json:"frontend,omitempty"`
- Backend  map[string]Backend `json:"backend,omitempty"`
+ IngressClass string             `json:"-" mapstructure:"class"`
+ Global       string             `json:"global,omitempty"`
+ Defaults     string             `json:"defaults,omitempty"`
+ Frontend     map[string]string  `json:"frontend,omitempty"`
+ Backend      map[string]Backend `json:"backend,omitempty"`
 }
 
 type Backend struct {
@@ -151,8 +157,6 @@ type Backend struct {
  Backend  string            `json:"backend,omitempty"`
 }
 ```
-
-Frontend snippets in the backend struct are executed as template and merged with the frontend config from the ConfigData struct. That is why it is not returned as json and not directly used in the template.
 
 ### Configuration
 
@@ -165,34 +169,7 @@ curl -i localhost:8080
 curl -i -H 'Accept: application/json' localhost:8080
 ```
 
-### Update the template at runtime
-
-It is possible to update the template at runtime via patch request.
-
-```shell
-curl -i -X PATCH localhost:8080/update --data-binary @path/to/template
-```
-
-### Example JSON response
-
-```json
-{
-    "global": "spread-checks 15\n",
-    "defaults": "timeout connect 5s\ntimeout check 5s\ntimeout client 2m\ntimeout server 2m\n",
-    "frontend": {
-        "default": "bind *:80\nuse_backend my-stack_some-app if { path -i -m beg /foo/ }\n"
-    },
-    "backend": {
-        "my-stack_some-app": {
-            "port": "80",
-            "replicas": 2,
-            "backend": "balance roundrobin\noption httpchk GET /\nhttp-request set-path \"%[path,regsub(^/foo/,/)]\"\n"
-        }
-    }
-}
-```
-
-### Example Config Response
+#### Example Config Response
 
 ```c
 resolvers docker
@@ -209,7 +186,6 @@ resolvers docker
 
 global
     log          fd@2 local2
-    stats socket /var/run/haproxy.pid mode 600 expose-fd listeners level user
     stats timeout 2m
     spread-checks 15
 
@@ -221,6 +197,9 @@ defaults
     timeout check 5s
     timeout client 2m
     timeout server 2m
+    retries 1
+    retry-on all-retryable-errors
+    option redispatch 1
 
 listen stats
     bind *:4450
@@ -232,14 +211,54 @@ listen stats
 
 frontend default
     bind *:80
-    use_backend my-stack_some-app if { path -i -m beg /foo/ }
+    option forwardfor except 127.0.0.1
+    option forwardfor header X-Real-IP
+    http-request disable-l7-retry unless METH_GET
+    default_backend my-stack_app
+    use_backend test if { path -i -m beg "/test/" }
 
-backend my-stack_some-app
-    balance roundrobin
+backend my-stack_app
+    balance leastconn
     option httpchk GET /
-    http-request set-path "%[path,regsub(^/foo/,/)]"
-    server-template my-stack_some-app- 2 tasks.my-stack_some-app:80 resolvers docker init-addr libc,none check
+    acl allowed_method method HEAD GET POST
+    http-request deny unless allowed_method
+    server-template my-stack_app- 2 tasks.my-stack_app:80 resolvers docker init-addr libc,none check
 
+backend test
+    http-request set-path "%[path,regsub(^/test/,/)]"
+    server-template test- 1 tasks.test:80 resolvers docker init-addr libc,none check
+```
+
+#### Example JSON response
+
+```json
+{
+  "global": "spread-checks 15\n",
+  "defaults": "timeout connect 5s\ntimeout check 5s\ntimeout client 2m\ntimeout server 2m\nretries 1\nretry-on all-retryable-errors\noption redispatch 1\n",
+  "frontend": {
+    "default": "bind *:80\noption forwardfor except 127.0.0.1\noption forwardfor header X-Real-IP\nhttp-request disable-l7-retry unless METH_GET\ndefault_backend my-stack_app\nuse_backend test if { path -i -m beg \"/test/\" }"
+  },
+  "backend": {
+    "my-stack_app": {
+      "port": "80",
+      "replicas": 2,
+      "backend": "balance leastconn\noption httpchk GET /\nacl allowed_method method HEAD GET POST\nhttp-request deny unless allowed_method\n"
+    },
+    "test": {
+      "port": "80",
+      "replicas": 1,
+      "backend": "http-request set-path \"%[path,regsub(^/test/,/)]\""
+    }
+  }
+}
+```
+
+#### Update the template at runtime
+
+It is possible to update the template at runtime via patch request.
+
+```shell
+curl -i -X PATCH localhost:8080/update --data-binary @path/to/template
 ```
 
 ## Local Development
@@ -247,8 +266,11 @@ backend my-stack_some-app
 If you have the repository locally, you can use the `Makefile` to run a example deployment.
 
 ```shell
-make
-curl -i localhost:3000 # backend app
-curl -i localhost:3000/foo/ # backend foo
-curl -i localhost:4450 # stats page
+make # build the images deploy a stack and a service
+curl -i "localhost:3000" # backend my-stack_app
+curl -i "localhost:3000/test/" # backend test
+curl -i "localhost:4450" # haproxy stats page
+curl -i "localhost:8080" # rendered template
+curl -i -H 'Accept: application/json' "localhost:8080" # json data
+make clean # remove the stack and service
 ```

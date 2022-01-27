@@ -32,7 +32,7 @@ listen stats
 {{- range $frontend, $config := .Frontend }}
 frontend {{$frontend}}
     {{$config | indent 4 | trim }}
-{{- end }}
+{{ end }}
 
 {{- range $backend, $config := .Backend }}
 backend {{$backend}}
