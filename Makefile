@@ -1,9 +1,10 @@
-stack: build
-	docker stack deploy -c stack.yml my-stack
+all: loadbalancer.build manager.build
 
-build:
-	docker build -t swarm-haproxy-manager manager/
-	docker build -t swarm-haproxy-loadbalancer loadbalancer/
+%.build:
+	docker build -t swarm-haproxy-$* $*/
+
+stack: loadbalancer.build manager.build
+	docker stack deploy -c stack.yml my-stack
 
 clean:
 	docker stack rm my-stack || true

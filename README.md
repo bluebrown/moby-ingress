@@ -10,73 +10,77 @@ The manager service is responsible for generating a valid haproxy configuration 
 version: "3.9"
 
 services:
-    # the lb service fetches the dynamic configuration,
-    # from the manager endpoint, periodically
-    loadbalancer:
-        image: bluebrown/swarm-haproxy-loadbalancer
-        # default values for env vars are below
-        environment: 
-            MANAGER_ENDPOINT: http://manager:8080/
-            SCRAPE_INTERVAL: '60'
-            STARTUP_DELAY: '5'
-        ports:
-            - 3000:80 # ingress port
-            - 4450:4450 # stats page
+  # the lb service fetches the dynamic configuration,
+  # from the manager endpoint, periodically
+  loadbalancer:
+    image: bluebrown/swarm-haproxy-loadbalancer
+    # default values for env vars are below
+    environment:
+      MANAGER_ENDPOINT: http://manager:8080/
+      SCRAPE_INTERVAL: "60"
+      STARTUP_DELAY: "5"
+    ports:
+      - 3000:80   # http ingress port as specified in the default frontend
+      - 4450:4450 # stats page as specified in the default template
 
-    # the manager service defines global defaults and frontend configs
-    manager:
-        image: bluebrown/swarm-haproxy-manager
-        # default template path, this is not required
-        # but can be useful when mounting a config file as volume
-        command: --template /src/haproxy.cfg.template 
-        volumes: 
-            -  /var/run/docker.sock:/var/run/docker.sock
-        ports:
-            - 8080:8080
-        labels:
-            ingress.global: |
-                spread-checks 15
-            ingress.defaults: |
-                timeout connect 5s
-                timeout check 5s
-                timeout client 2m
-                timeout server 2m
-            ingress.frontend.default: |
-                bind *:80
-        deploy:
-            placement:
-                constraints:
-                    # needs to be on a manager node to read the services
-                    - "node.role==manager"
+  # the manager service defines global defaults and frontend configs
+  manager:
+    image: bluebrown/swarm-haproxy-manager
+    # default template path, this is not required
+    # but can be useful when mounting a config file as volume
+    command: --template /src/haproxy.cfg.template
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 8080:8080
+    labels:
+      # if the ingress class is provided the services are filtered by the ingress class
+      # otherwise all services are checked
+      ingress.class: haproxy
+      ingress.global: |
+        spread-checks 15
+      ingress.defaults: |
+        timeout connect 5s
+        timeout check 5s
+        timeout client 2m
+        timeout server 2m
+      ingress.frontend.default: |
+        bind *:80
+    deploy:
+      placement:
+        constraints:
+          # needs to be on a manager node to read the services
+          - "node.role==manager"
 
-    # each app service defines its own backend config
-    # and can provide a frontend snippet for 1 or more frontend.
-    # The snippet will be merged with the frontend config from the
-    # manager service
-    some-app:
-        image: nginx
-        deploy:
-            replicas: 2
-            labels:
-                # the application port inside the container
-                ingress.port: "80"
-                # rules are merged with the corresponding frontend rules
-                ingress.frontend.default: |
-                    use_backend {{ .Name }} if { path -i -m beg /foo/ }
-                # backend snippet are added to the backend created from
-                # this service definition
-                ingress.backend: |
-                    balance roundrobin
-                    option httpchk GET /
-                    http-request set-path "%[path,regsub(^/foo/,/)]"
-
+  # each app service defines its own backend config
+  # and can provide a frontend snippet for 1 or more frontend.
+  # The snippet will be merged with the frontend config from the
+  # manager service
+  some-app:
+    image: nginx
+    deploy:
+      replicas: 2
+      labels:
+        # the ingress class of the manager
+        ingress.class: haproxy
+        # the application port inside the container
+        ingress.port: "80"
+        # rules are merged with the corresponding frontend rules
+        ingress.frontend.default: |
+          use_backend {{ .Name }} if { path -i -m beg /foo/ }
+        # backend snippet are added to the backend created from
+        # this service definition
+        ingress.backend: |
+          balance roundrobin
+          option httpchk GET /
+          http-request set-path "%[path,regsub(^/foo/,/)]"
 ```
 
 See the [official haproxy documentation](https://www.haproxy.com/blog/the-four-essential-sections-of-an-haproxy-configuration/) to learn more about haproxy configuration. The settings are identical to the official haproxy version.
 
 Currently it only works when deploying the *backend* services with swarm. The manager can be deployed with a normal container. This is because the labels for the manager are provided on container level while the backends are created from service definitions and their labels.
 
-> Note  
+> Note
 > *Be careful which ports you publish in production*
 
 ## Template
@@ -152,19 +156,21 @@ Frontend snippets in the backend struct are executed as template and merged with
 
 ### Configuration
 
-The configuration can be fetched via the root endpoint of the manager service. The raw data to populate the template is available in json format.
+The configuration can be fetched via the root endpoint of the manager service. The raw data to populate the template is also available in json format.
 
 ```shell
+# returns the rendered template
 curl -i localhost:8080
-curl -i localhost:8080/json
+# returns the raw json data
+curl -i -H 'Accept: application/json' localhost:8080
 ```
 
 ### Update the template at runtime
 
-It is possible to update the template at runtime via post request.
+It is possible to update the template at runtime via patch request.
 
 ```shell
-curl -i -X POST localhost:8080/update --data-binary @path/to/template
+curl -i -X PATCH localhost:8080/update --data-binary @path/to/template
 ```
 
 ### Example JSON response
@@ -214,7 +220,7 @@ defaults
     timeout connect 5s
     timeout check 5s
     timeout client 2m
-    timeout server 2m 
+    timeout server 2m
 
 listen stats
     bind *:4450
@@ -222,7 +228,7 @@ listen stats
     stats uri /
     stats refresh 15s
     stats show-legends
-    stats show-node 
+    stats show-node
 
 frontend default
     bind *:80

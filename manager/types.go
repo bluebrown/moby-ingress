@@ -1,12 +1,15 @@
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type ConfigData struct {
-	Global   string             `json:"global,omitempty"`
-	Defaults string             `json:"defaults,omitempty"`
-	Frontend map[string]string  `json:"frontend,omitempty"`
-	Backend  map[string]Backend `json:"backend,omitempty"`
+	IngressClass string             `json:"-" mapstructure:"class"`
+	Global       string             `json:"global,omitempty"`
+	Defaults     string             `json:"defaults,omitempty"`
+	Frontend     map[string]string  `json:"frontend,omitempty"`
+	Backend      map[string]Backend `json:"backend,omitempty"`
 }
 
 type Backend struct {

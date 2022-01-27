@@ -1,9 +1,13 @@
-FROM golang
+FROM golang as builder
 WORKDIR /src
-COPY go.mod .
-COPY go.sum .
+COPY go.mod go.sum ./
+RUN go mod download
 COPY *.go /src/
-RUN go build -o app .
-ENTRYPOINT [ "./app" ]
-COPY haproxy.cfg.template .
-# TODO: use muti staging and a non-root user
+RUN mkdir -p /dist/templates \
+  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /dist/run .
+COPY haproxy.cfg.template /dist/templates/
+
+FROM alpine
+WORKDIR /mananger
+COPY --from=builder /dist ./
+ENTRYPOINT ["./run"]
