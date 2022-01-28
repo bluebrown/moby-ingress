@@ -52,8 +52,7 @@ services:
       labels:
         # the ingress class of the manager
         ingress.class: haproxy
-        # the application port inside the container,
-        # the first private port is used if not specified
+        # the application port inside the container (default: 80)
         ingress.port: "80"
         # rules are merged with corresponding frontend
         # the service name is used available in go template format

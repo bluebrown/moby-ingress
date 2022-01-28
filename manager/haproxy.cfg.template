@@ -37,7 +37,7 @@ frontend {{$frontend}}
 {{- range $backend, $config := .Backend }}
 backend {{$backend}}
     {{ $config.Backend | indent 4 | trim }}
-    server-template {{ $backend }}- {{ $config.Replicas }} tasks.{{ $backend }}:{{ $config.Port }} resolvers docker init-addr libc,none check
+    server-template {{ $backend }}- {{ $config.Replicas }} tasks.{{ $backend }}:{{ default "80" $config.Port }} resolvers docker init-addr libc,none check
 {{ end }}
 
 {{ println ""}}

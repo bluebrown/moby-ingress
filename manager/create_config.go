@@ -87,18 +87,27 @@ func ParseSwarmServices(conf *ConfigData, services []swarm.Service) {
 			// from the manager labels
 			for name, snippet := range be.Frontend {
 				if _, ok := conf.Frontend[name]; ok {
+					// try to parse the snippet as template
 					tmpl, err := template.New("backend").Parse(snippet)
 					if err != nil {
 						fmt.Printf("ERROR: failed to parse config snippet for backend %s: %v", be.Backend, err)
 						continue
 					}
+					// execute the template and pass the backend name to it
 					data := new(bytes.Buffer)
 					tmpl.Execute(data, struct{ Name string }{Name: BackendName})
-					conf.Frontend[name] += data.String()
+					// make sure the snippets ends with a new line
+					stringData := data.String()
+					if !strings.HasSuffix(stringData, "\n") {
+						stringData += "\n"
+					}
+					// append snippet to the corresponding frontend
+					conf.Frontend[name] += stringData
 				} else {
 					fmt.Println("WARNING: skipping frontend, name not found in manager labels: " + name)
 				}
 			}
+
 			// add the backend to the config data
 			conf.Backend[BackendName] = be
 			log.Printf("Added backend: %s with port %s\n", BackendName, be.Port)

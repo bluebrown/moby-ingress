@@ -12,8 +12,7 @@ stack:
 
 test:
 	docker service create \
-		--label ingress.class=haproxy \
-		--label ingress.port=80 \
+		--label 'ingress.class=haproxy' \
 		--label 'ingress.frontend.default=use_backend {{ .Name }} if { path -i -m beg "/test/" }' \
 		--label 'ingress.backend=http-request set-path "%[path,regsub(^/test/,/)]"' \
 		--name test \
