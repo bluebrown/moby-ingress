@@ -4,7 +4,7 @@
 
 - [ ] Improve test setup
 - [x] handle errors on manager
-- [ ] use multi staging and non root user
+- [x] use multi staging and non root user
 - [ ] allow to use manager with compose
 - [ ] implement config caching
 - [ ] use port from docker client if ingress port is not specified
