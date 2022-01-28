@@ -10,6 +10,7 @@ services:
     ports:
       - 3000:80 # ingress port
       - 4450:4450 # stats page
+      - 9876:9876 # socket cli
 
   manager:
     image: swarm-haproxy-manager

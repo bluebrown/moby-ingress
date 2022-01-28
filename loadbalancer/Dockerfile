@@ -5,13 +5,11 @@ WORKDIR /usr/local/etc/haproxy/
 USER root
 
 RUN apk add --update curl socat && rm -rf /var/cache/apk/* \
-  && mkdir -p /var/run/haproxy \
-  && chown -R haproxy:haproxy /var/run/haproxy \
   && chown -R haproxy:haproxy /usr/local/etc/haproxy
 
 ENTRYPOINT [ "entrypoint.sh" ]
 
-CMD ["haproxy", "-f", "/usr/local/etc/haproxy/haproxy.cfg", "-S", "/run/haproxy/haproxy-master.sock"]
+CMD ["haproxy", "-f", "/usr/local/etc/haproxy/haproxy.cfg", "-S", "ipv4@0.0.0.0:9876"]
 
 COPY --chown=haproxy:haproxy *.cfg /usr/local/etc/haproxy/
 

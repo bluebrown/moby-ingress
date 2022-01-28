@@ -19,6 +19,7 @@ services:
     ports:
       - 3000:80 # ingress port
       - 4450:4450 # stats page
+      - 9876:9876 # socket cli
 
   manager:
     image: swarm-haproxy-manager
@@ -273,4 +274,29 @@ curl -i "localhost:4450" # haproxy stats page
 curl -i "localhost:8080" # rendered template
 curl -i -H 'Accept: application/json' "localhost:8080" # json data
 make clean # remove the stack and service
+```
+
+## Haproxy Socket
+
+If you publish the port 9876 on the loadbalancer you can use `socat` to connect to the socket cli.
+
+```bash
+$ socat tcp-connect:127.0.0.1:9876 -
+$ prompt
+$ master> help
+ help
+The following commands are valid at this level:
+  @!<pid>                                 : send a command to the <pid> process
+  @<relative pid>                         : send a command to the <relative pid> process
+  @master                                 : send a command to the master process
+  operator                                : lower the level of the current CLI session to operator
+  reload                                  : reload haproxy
+  show cli level                          : display the level of the current CLI session
+  show cli sockets                        : dump list of cli sockets
+  show proc                               : show processes status
+  show version                            : show version of the current process
+  user                                    : lower the level of the current CLI session to user
+  help [<command>]                        : list matching or all commands
+  prompt                                  : toggle interactive mode with prompt
+  quit                                    : disconnect
 ```
