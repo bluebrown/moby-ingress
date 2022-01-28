@@ -31,13 +31,16 @@ services:
     ports:
       - 8080:8080
     deploy:
+      mode: global
       placement:
         constraints:
           # needs to be on a manager node to read the services
           - "node.role==manager"
+    # manager labels are added to the container
+    # instead of the services under the deploy key
     labels:
-      # if the ingress class is provided the services are filtered by the ingress class
-      # otherwise all services are checked
+      # if the ingress class is provided the services are
+      # filtered by the ingress class otherwise all services are checked
       ingress.class: haproxy
       ingress.global: |
         spread-checks 15
@@ -51,8 +54,6 @@ services:
         option redispatch 1
       ingress.frontend.default: |
         bind *:80
-        # bind *:443 ssl crt /etc/certs/fullchain.pem
-        # http-request redirect scheme https unless { ssl_fc }
         option forwardfor except 127.0.0.1
         option forwardfor header X-Real-IP
         http-request disable-l7-retry unless METH_GET
@@ -61,11 +62,11 @@ services:
     image: nginx
     deploy:
       replicas: 2
+      # service labels are added under the deploy key
       labels:
         # the ingress class of the manager
         ingress.class: haproxy
-        # the application port inside the container,
-        # the first private port is used if not specified
+        # the application port inside the container (default: 80)
         ingress.port: "80"
         # rules are merged with corresponding frontend
         # the service name is used available in go template format

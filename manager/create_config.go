@@ -67,18 +67,20 @@ func ParseManagerInfo(conf *ConfigData, info types.ContainerJSON) {
 // the config data, created from the manager labels
 func ParseSwarmServices(conf *ConfigData, services []swarm.Service) {
 	for _, svc := range services {
+		log.Printf("Parsing service %s...", svc.Spec.Name)
+
 		// the backend name is the service name
 		BackendName := svc.Spec.Name
 
 		// get the service labels
-		c := map[string]interface{}{}
-		labelparser.Parse(svc.Spec.Labels, &c)
+		svcLabels := map[string]interface{}{}
+		labelparser.Parse(svc.Spec.Labels, &svcLabels)
 
 		// if it contains ingres rules decode them
-		if configMap, ok := c["ingress"]; ok {
+		if ingressLabels, ok := svcLabels["ingress"]; ok {
 			// get the backend config
 			be := Backend{}
-			mapstructure.Decode(configMap, &be)
+			mapstructure.Decode(ingressLabels, &be)
 
 			// replicas are used from the service spec
 			be.Replicas = *svc.Spec.Mode.Replicated.Replicas

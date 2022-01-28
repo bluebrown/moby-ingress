@@ -22,13 +22,16 @@ services:
     ports:
       - 8080:8080
     deploy:
+      mode: global
       placement:
         constraints:
           # needs to be on a manager node to read the services
           - "node.role==manager"
+    # manager labels are added to the container
+    # instead of the services under the deploy key
     labels:
-      # if the ingress class is provided the services are filtered by the ingress class
-      # otherwise all services are checked
+      # if the ingress class is provided the services are
+      # filtered by the ingress class otherwise all services are checked
       ingress.class: haproxy
       ingress.global: |
         spread-checks 15
@@ -50,6 +53,7 @@ services:
     image: nginx
     deploy:
       replicas: 2
+      # service labels are added under the deploy key
       labels:
         # the ingress class of the manager
         ingress.class: haproxy
