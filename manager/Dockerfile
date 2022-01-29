@@ -11,3 +11,4 @@ FROM alpine
 WORKDIR /mananger
 COPY --from=builder /dist ./
 ENTRYPOINT ["./run"]
+LABEL ingress.role="manager"

@@ -18,8 +18,6 @@ import (
 )
 
 // create the config data from the docker client
-// TODO: implement some caching mechanism to avoid calling the docker client
-// every time a request is made by the loadbalancer
 func CreateConfigData(ctx context.Context, cli *client.Client) (ConfigData, error) {
 	// initialize the a new config struct
 	conf := ConfigData{}
@@ -115,9 +113,4 @@ func ParseSwarmServices(conf *ConfigData, services []swarm.Service) {
 			log.Printf("Added backend: %s with port %s\n", BackendName, be.Port)
 		}
 	}
-}
-
-func TemplateName(path string) string {
-	parts := strings.Split(path, "/")
-	return parts[len(parts)-1]
 }
