@@ -1,10 +1,11 @@
 #!/bin/sh
 
-set -e
+set -eu
 
 fetch_config() {
   # fetch config
-  if ! curl -s -f "$1" >new.cfg; then
+  if ! curl --url "$1" --max-time 70 --output new.cfg --fail --silent --show-error --location; then
+    sleep 1
     return 1
   fi
   # compare checksums
@@ -22,23 +23,15 @@ fetch_config() {
 
 scrape_config() {
   while :; do
-    # sleep until next iteration
-    sleep "$2"
     if fetch_config "$1"; then
-      # reload worker
       kill -s SIGUSR2 1
+      continue
     fi
   done
 }
 
-# sleep a bit to wait for manager
-sleep "${STARTUP_DELAY:=5}"
-
-# try to fetch the first config or use the default
-fetch_config "${MANAGER_ENDPOINT:=http://manager:8080}" || true
-
-# run task in background every n seconds to update config and restart if needed proxy
-scrape_config "$MANAGER_ENDPOINT" "${SCRAPE_INTERVAL:=60}" &
+# start a long polling loop to fetch config
+scrape_config "$MANAGER_ENDPOINT" &
 
 # exec original entrypoint to make it pid 1
 exec docker-entrypoint.sh "$@"

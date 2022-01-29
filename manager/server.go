@@ -5,16 +5,21 @@ import (
 	"net/http"
 	"text/template"
 
-	"github.com/docker/docker/client"
+	"github.com/Masterminds/sprig"
 )
 
-func RunServer(cli *client.Client, configTemplate *template.Template, templatePath string) {
+func NewMux(reconciler *Reconciler, templatePath string) *http.ServeMux {
+	// initialize a the server
+	mux := http.NewServeMux()
+	// if the template is not parsable, panic and exit
+	configTemplate := template.Must(template.New(TemplateName(templatePath)).Funcs(sprig.TxtFuncMap()).ParseFiles(templatePath))
+
 	// initialize the handlers
-	confHandler := handleGetConfig(cli, configTemplate)
+	confHandler := handleGetConfig(reconciler, configTemplate)
 	patchHandler := handlePatchConfig(templatePath, configTemplate)
 
 	// mux the handlers
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s", r.Method, r.URL)
 		// get the config
 		if r.Method == "GET" {
@@ -29,7 +34,6 @@ func RunServer(cli *client.Client, configTemplate *template.Template, templatePa
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	})
 
-	// start the server
-	log.Println("Starting server on port 8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	return mux
+
 }
