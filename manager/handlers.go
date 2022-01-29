@@ -9,7 +9,7 @@ import (
 	"github.com/Masterminds/sprig"
 )
 
-func handleGetConfig(recon *Reconciler, templ *template.Template) http.HandlerFunc {
+func handleGetConfig(recon ReconciliationBroker, templ *template.Template) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		ch := recon.Subscribe()

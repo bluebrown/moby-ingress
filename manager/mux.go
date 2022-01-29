@@ -8,7 +8,7 @@ import (
 	"github.com/Masterminds/sprig"
 )
 
-func NewMux(reconciler *Reconciler, templatePath string) *http.ServeMux {
+func NewMux(reconciler ReconciliationBroker, templatePath string) *http.ServeMux {
 	// initialize a the server
 	mux := http.NewServeMux()
 	// if the template is not parsable, panic and exit

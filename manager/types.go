@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"time"
+
+	"github.com/docker/docker/client"
 )
 
 type ConfigData struct {
@@ -23,4 +26,23 @@ type Backend struct {
 func (c ConfigData) ToJsonBytes() []byte {
 	b, _ := json.Marshal(c)
 	return b
+}
+
+type Reconciliation struct {
+	Config ConfigData
+	Error  error
+}
+
+type Reconciler struct {
+	cli             *client.Client
+	tickspeed       time.Duration
+	ticker          *time.Ticker
+	Subscribers     map[chan Reconciliation]struct{}
+	SubscribeChan   chan chan Reconciliation
+	UnsubscribeChan chan chan Reconciliation
+}
+
+type ReconciliationBroker interface {
+	Subscribe() (subscription chan Reconciliation)
+	Unsubscribe(subscription chan Reconciliation)
 }
