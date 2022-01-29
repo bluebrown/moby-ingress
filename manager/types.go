@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -33,16 +34,19 @@ type Reconciliation struct {
 	Error  error
 }
 
+type Subscription struct {
+	CH  chan Reconciliation
+	Ctx context.Context
+}
+
 type Reconciler struct {
-	cli             *client.Client
-	tickspeed       time.Duration
-	ticker          *time.Ticker
-	Subscribers     map[chan Reconciliation]struct{}
-	SubscribeChan   chan chan Reconciliation
-	UnsubscribeChan chan chan Reconciliation
+	cli           *client.Client
+	tickspeed     time.Duration
+	ticker        *time.Ticker
+	Subscribers   map[chan Reconciliation]context.Context
+	SubscribeChan chan Subscription
 }
 
 type ReconciliationBroker interface {
-	Subscribe() (subscription chan Reconciliation)
-	Unsubscribe(subscription chan Reconciliation)
+	NextValue(ctx context.Context) (subscription chan Reconciliation)
 }

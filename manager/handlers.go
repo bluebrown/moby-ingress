@@ -12,32 +12,32 @@ import (
 func handleGetConfig(recon ReconciliationBroker, templ *template.Template) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		ch := recon.Subscribe()
-		outcome := <-ch
-		recon.Unsubscribe(ch)
-
-		if outcome.Error != nil {
-			log.Printf("error getting config: %s", outcome.Error)
-			w.WriteHeader(http.StatusInternalServerError)
+		ctx := r.Context()
+		select {
+		// if the client closed the connection, return
+		case <-ctx.Done():
 			return
+		// if the reconciliation broker has a new config, return it
+		case reconliiaction := <-recon.NextValue(ctx):
+			if reconliiaction.Error != nil {
+				log.Printf("error getting config: %s", reconliiaction.Error)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			// return json if accept header is application/json
+			if r.Header.Get("Accept") == "application/json" {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write(reconliiaction.Config.ToJsonBytes())
+				return
+			}
+			// otherwise render the template
+			err := templ.Execute(w, reconliiaction.Config)
+			if err != nil {
+				log.Printf("ERROR: %s", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
-
-		// return json if accept header is application/json
-		if r.Header.Get("Accept") == "application/json" {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write(outcome.Config.ToJsonBytes())
-			return
-		}
-
-		// otherwise render the template
-		err := templ.Execute(w, outcome.Config)
-
-		if err != nil {
-			log.Printf("ERROR: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
 	}
 }
 

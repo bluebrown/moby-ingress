@@ -11,27 +11,20 @@ func NewReconciler(cli *client.Client, tickspeed time.Duration) *Reconciler {
 	// the true tickspeed will be set after the first tick
 	// which is seperately handled by the Reconcile function
 	return &Reconciler{
-		cli:             cli,
-		tickspeed:       tickspeed,
-		ticker:          time.NewTicker(time.Hour),
-		Subscribers:     make(map[chan Reconciliation]struct{}),
-		SubscribeChan:   make(chan chan Reconciliation),
-		UnsubscribeChan: make(chan chan Reconciliation),
+		cli:           cli,
+		tickspeed:     tickspeed,
+		ticker:        time.NewTicker(time.Hour),
+		Subscribers:   make(map[chan Reconciliation]context.Context),
+		SubscribeChan: make(chan Subscription, 10),
 	}
 }
 
-// Subscribe returns a channel that will receive the config data on
-// each tick of the reconillation loop
-func (r *Reconciler) Subscribe() (subscription chan Reconciliation) {
+// returns a channel that will receive the a reconciliation on the next tick
+// and is closed afterwards, so it does not receive more than one message
+func (r *Reconciler) NextValue(ctx context.Context) (subscription chan Reconciliation) {
 	subscription = make(chan Reconciliation, 1)
-	r.SubscribeChan <- subscription
+	r.SubscribeChan <- Subscription{subscription, ctx}
 	return subscription
-}
-
-// unsubscribe removes the subscription channel from the list of subscribers
-// so that the channel wont receive any more messages
-func (r *Reconciler) Unsubscribe(subscription chan Reconciliation) {
-	r.UnsubscribeChan <- subscription
 }
 
 func (r *Reconciler) publishConf(ctx context.Context) {
@@ -39,8 +32,15 @@ func (r *Reconciler) publishConf(ctx context.Context) {
 		return
 	}
 	conf, err := CreateConfigData(ctx, r.cli)
-	for sub := range r.Subscribers {
-		sub <- Reconciliation{conf, err}
+	for ch, cx := range r.Subscribers {
+		// send the value only if the context is not done
+		if cx.Err() == nil {
+			ch <- Reconciliation{conf, err}
+		}
+		// close the channel and delete it from the list
+		// afterwards as this is a one-shot channel
+		close(ch)
+		delete(r.Subscribers, ch)
 	}
 }
 
@@ -64,14 +64,16 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 				r.ticker.Stop()
 				return
 
-			// unsubscribe a subscriber
-			case subscriber := <-r.UnsubscribeChan:
-				close(subscriber)
-				delete(r.Subscribers, subscriber)
-
 				// subscribe a subscriber
 			case subscriber := <-r.SubscribeChan:
-				r.Subscribers[subscriber] = struct{}{}
+				// if the context is already done
+				// close the channel and don't add it to the list
+				if subscriber.Ctx.Err() != nil {
+					close(subscriber.CH)
+					continue
+				}
+				// otherwise, add it to the list
+				r.Subscribers[subscriber.CH] = subscriber.Ctx
 
 			// create the config data on each tick
 			// as long as there is at least one subscriber
