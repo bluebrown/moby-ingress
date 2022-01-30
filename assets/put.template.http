@@ -17,7 +17,7 @@ resolvers docker
 
 global
     log          fd@2 local2
-    stats timeout 2m
+    stats timeout 1m
     {{ .Global | indent 4 | trim }}
 
 defaults
@@ -30,7 +30,7 @@ listen stats
     bind *:4450
     stats enable
     stats uri /
-    stats refresh 15s
+    stats refresh 30s
     stats show-legends
     stats show-node {{ println "" }}
 

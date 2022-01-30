@@ -6,8 +6,8 @@
 - [x] handle errors on manager
 - [x] use multi staging and non root user
 - [ ] allow to use manager with compose
-- [ ] implement config caching
-- [ ] use port from docker client if ingress port is not specified
+- [x] implement config caching
+- [x] use port from docker client if ingress port is not specified - not possible with swarm WONT FIX
 - [x] use ingress class to filter
 
 ## Questions

@@ -157,7 +157,9 @@ type Backend struct {
 }
 ```
 
-### Haproxy Configuration File
+## Manager API
+
+Example HTTP requests can be found in the assets folder.
 
 The configuration can be fetched via the root endpoint of the manager service. The manager will return the current config immediately if the `Config-Hash` header has not been set or its value is different from the the current configs hash.
 
@@ -176,7 +178,7 @@ The raw data to populate the template is also available in json format. Since th
 curl -i -H 'Accept: application/json' localhost:8080
 ```
 
-#### Example Config Response
+### Example Config Response
 
 ```c
 resolvers docker
@@ -236,7 +238,7 @@ backend test
     server-template test- 1 tasks.test:80 resolvers docker init-addr libc,none check
 ```
 
-#### Example JSON response
+### Example JSON response
 
 ```json
 {
@@ -260,7 +262,7 @@ backend test
 }
 ```
 
-#### Update the template at runtime
+### Update the template at runtime
 
 It is possible to change the template at runtime via PUT request.
 
