@@ -1,4 +1,4 @@
-package main
+package decode
 
 import (
 	"bytes"
@@ -10,7 +10,8 @@ import (
 	"text/template"
 
 	"github.com/bluebrown/labelparser"
-	"github.com/docker/docker/api/types"
+	"github.com/bluebrown/moby-ingress/pkg/haproxy"
+	moby "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
@@ -18,10 +19,10 @@ import (
 )
 
 // create the config data from the docker client
-func CreateConfigData(ctx context.Context, cli *client.Client) (ConfigData, error) {
+func DecodeConfigData(ctx context.Context, cli *client.Client) (haproxy.ConfigData, error) {
 	// initialize the a new config struct
-	conf := ConfigData{}
-	conf.Backend = make(map[string]Backend)
+	conf := haproxy.ConfigData{}
+	conf.Backend = make(map[string]haproxy.Backend)
 
 	// get the labels from the manager itself, as it holds global
 	// and frontend configs
@@ -30,9 +31,9 @@ func CreateConfigData(ctx context.Context, cli *client.Client) (ConfigData, erro
 		return conf, err
 	}
 	// create initial config data from the manager labels
-	ParseManagerInfo(&conf, info)
+	DecodeManagerInfo(&conf, info)
 
-	opts := types.ServiceListOptions{}
+	opts := moby.ServiceListOptions{}
 	// if an ingress class was specified, use it to filter the services
 	if conf.IngressClass != "" {
 		opts.Filters = filters.NewArgs(filters.KeyValuePair{Key: "label", Value: "ingress.class=" + conf.IngressClass})
@@ -44,14 +45,14 @@ func CreateConfigData(ctx context.Context, cli *client.Client) (ConfigData, erro
 	}
 
 	// parse the services
-	ParseSwarmServices(&conf, services)
+	DecodeSwarmServices(&conf, services)
 
 	// return the final config struct
 	return conf, nil
 }
 
 // parse the manager labels into the config data
-func ParseManagerInfo(conf *ConfigData, info types.ContainerJSON) {
+func DecodeManagerInfo(conf *haproxy.ConfigData, info moby.ContainerJSON) {
 	c := map[string]interface{}{}
 	labelparser.Parse(info.Config.Labels, &c)
 
@@ -63,7 +64,7 @@ func ParseManagerInfo(conf *ConfigData, info types.ContainerJSON) {
 
 // iterate through all services to merge their configs into
 // the config data, created from the manager labels
-func ParseSwarmServices(conf *ConfigData, services []swarm.Service) {
+func DecodeSwarmServices(conf *haproxy.ConfigData, services []swarm.Service) {
 	for _, svc := range services {
 		log.Printf("Parsing service %s...", svc.Spec.Name)
 
@@ -77,7 +78,7 @@ func ParseSwarmServices(conf *ConfigData, services []swarm.Service) {
 		// if it contains ingres rules decode them
 		if ingressLabels, ok := svcLabels["ingress"]; ok {
 			// get the backend config
-			be := Backend{}
+			be := haproxy.Backend{}
 			mapstructure.Decode(ingressLabels, &be)
 
 			// replicas are used from the service spec

@@ -2,12 +2,12 @@ FROM golang as builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-COPY *.go /src/
+COPY . /src/
 RUN mkdir -p /dist/templates
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /dist/run .
-COPY assets/haproxy.cfg.template /dist/templates/
+RUN mv assets/haproxy.cfg.template /dist/templates/
 
-FROM alpine
+FROM busybox
 WORKDIR /mananger
 COPY --from=builder /dist ./
 ENTRYPOINT ["./run"]

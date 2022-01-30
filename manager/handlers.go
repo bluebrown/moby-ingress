@@ -3,9 +3,11 @@ package main
 import (
 	"io/ioutil"
 	"net/http"
+
+	"github.com/bluebrown/moby-ingress/pkg/reconcile"
 )
 
-func handleGetConfig(recon ReconciliationBroker) http.HandlerFunc {
+func handleGetConfig(recon reconcile.ReconciliationBroker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		hash := r.Header.Get("Config-Hash")
@@ -29,7 +31,7 @@ func handleGetConfig(recon ReconciliationBroker) http.HandlerFunc {
 	}
 }
 
-func handlePutTemplate(recon ReconciliationBroker) http.HandlerFunc {
+func handlePutTemplate(recon reconcile.ReconciliationBroker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// read the new template from the request body
 		body, err := ioutil.ReadAll(r.Body)

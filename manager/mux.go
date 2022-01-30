@@ -3,9 +3,11 @@ package main
 import (
 	"log"
 	"net/http"
+
+	"github.com/bluebrown/moby-ingress/pkg/reconcile"
 )
 
-func NewMux(reconciler ReconciliationBroker, templatePath string) *http.ServeMux {
+func NewMux(reconciler reconcile.ReconciliationBroker, templatePath string) *http.ServeMux {
 	// initialize a the server
 	mux := http.NewServeMux()
 

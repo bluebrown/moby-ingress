@@ -1,40 +1,19 @@
-package main
+package reconcile
 
 import (
 	"context"
 	"log"
 	"text/template"
-	"time"
 
 	"github.com/Masterminds/sprig"
-	"github.com/docker/docker/client"
+	"github.com/bluebrown/moby-ingress/pkg/decode"
+	"github.com/bluebrown/moby-ingress/pkg/haproxy"
 )
-
-func NewReconciler(cli *client.Client, tickspeed time.Duration, tpl *template.Template) *Reconciler {
-	hp := HaproxyConfig{}
-	hp.Template = tpl
-	err := hp.Set(ConfigData{})
-	if err != nil {
-		panic(err)
-	}
-
-	r := Reconciler{
-		cli:             cli,
-		haproxyConfig:   &hp,
-		ticker:          time.NewTicker(tickspeed),
-		Subscribers:     make(map[chan *HaproxyConfig]context.Context),
-		SubscribeChan:   make(chan Subscription, 10),
-		SetTemplateChan: make(chan *template.Template),
-	}
-
-	return &r
-
-}
 
 // returns a channel that will receive the a reconciliation on the next tick
 // and is closed afterwards, so it does not receive more than one message
-func (r *Reconciler) NextValue(ctx context.Context, hash string) (subChan chan *HaproxyConfig) {
-	subChan = make(chan *HaproxyConfig, 1)
+func (r *Reconciler) NextValue(ctx context.Context, hash string) (subChan chan *haproxy.HaproxyConfig) {
+	subChan = make(chan *haproxy.HaproxyConfig, 1)
 	r.SubscribeChan <- Subscription{ctx, hash, subChan}
 	return subChan
 }
@@ -43,7 +22,7 @@ func (r *Reconciler) NextValue(ctx context.Context, hash string) (subChan chan *
 // if the hash hasn't changed, don't publish the data
 // as all subscribers have subscribed with the current hash
 func (r *Reconciler) publishConf(ctx context.Context) {
-	conf, err := CreateConfigData(ctx, r.cli)
+	conf, err := decode.DecodeConfigData(ctx, r.cli)
 	if err != nil {
 		log.Printf("[ERROR] %s", err)
 		return

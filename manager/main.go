@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"text/template"
 	"time"
 
 	"github.com/Masterminds/sprig"
+	"github.com/bluebrown/moby-ingress/pkg/reconcile"
 	"github.com/docker/docker/client"
 )
 
@@ -25,7 +27,7 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	rc := NewReconciler(cli, time.Second*30, template.Must(template.New(TemplateName(*templatPath)).Funcs(sprig.TxtFuncMap()).ParseFiles(*templatPath)))
+	rc := reconcile.NewReconciler(cli, time.Second*30, template.Must(template.New(TemplateName(*templatPath)).Funcs(sprig.TxtFuncMap()).ParseFiles(*templatPath)))
 	rc.Reconcile(ctx)
 	mux := NewMux(rc, *templatPath)
 	server := &http.Server{Addr: ":8080", Handler: mux}
@@ -49,4 +51,9 @@ func main() {
 		log.Fatalf("Server Shutdown Failed:%+v", err)
 	}
 
+}
+
+func TemplateName(path string) string {
+	parts := strings.Split(path, "/")
+	return parts[len(parts)-1]
 }

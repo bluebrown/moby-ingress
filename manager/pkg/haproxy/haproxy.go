@@ -1,11 +1,11 @@
-package main
+package haproxy
 
 import (
-	"context"
+	"bytes"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"text/template"
-	"time"
-
-	"github.com/docker/docker/client"
 )
 
 type ConfigData struct {
@@ -23,17 +23,6 @@ type Backend struct {
 	Backend  string            `json:"backend,omitempty"`
 }
 
-type Reconciliation struct {
-	Config ConfigData
-	Error  error
-}
-
-type Subscription struct {
-	Ctx  context.Context
-	Hash string
-	CH   chan *HaproxyConfig
-}
-
 type HaproxyConfig struct {
 	Template *template.Template
 	File     []byte
@@ -41,16 +30,19 @@ type HaproxyConfig struct {
 	JSON     []byte
 }
 
-type Reconciler struct {
-	cli             *client.Client
-	ticker          *time.Ticker
-	Subscribers     map[chan *HaproxyConfig]context.Context
-	SubscribeChan   chan Subscription
-	haproxyConfig   *HaproxyConfig
-	SetTemplateChan chan *template.Template
-}
-
-type ReconciliationBroker interface {
-	NextValue(ctx context.Context, hash string) (subscription chan *HaproxyConfig)
-	SetTemplate(rawTemplate string) error
+func (hp *HaproxyConfig) Set(conf ConfigData) error {
+	b := new(bytes.Buffer)
+	err := hp.Template.Execute(b, conf)
+	if err != nil {
+		return err
+	}
+	hp.File = b.Bytes()
+	hashBytes := md5.Sum(hp.File)
+	hp.Hash = hex.EncodeToString(hashBytes[:])
+	jsonBytes, err := json.Marshal(conf)
+	if err != nil {
+		return err
+	}
+	hp.JSON = jsonBytes
+	return nil
 }
