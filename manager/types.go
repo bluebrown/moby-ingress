@@ -42,13 +42,15 @@ type HaproxyConfig struct {
 }
 
 type Reconciler struct {
-	cli           *client.Client
-	ticker        *time.Ticker
-	Subscribers   map[chan *HaproxyConfig]context.Context
-	SubscribeChan chan Subscription
-	haproxyConfig *HaproxyConfig
+	cli             *client.Client
+	ticker          *time.Ticker
+	Subscribers     map[chan *HaproxyConfig]context.Context
+	SubscribeChan   chan Subscription
+	haproxyConfig   *HaproxyConfig
+	SetTemplateChan chan *template.Template
 }
 
 type ReconciliationBroker interface {
 	NextValue(ctx context.Context, hash string) (subscription chan *HaproxyConfig)
+	SetTemplate(rawTemplate string) error
 }

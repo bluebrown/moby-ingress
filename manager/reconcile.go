@@ -6,6 +6,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig"
 	"github.com/docker/docker/client"
 )
 
@@ -18,11 +19,12 @@ func NewReconciler(cli *client.Client, tickspeed time.Duration, tpl *template.Te
 	}
 
 	r := Reconciler{
-		cli:           cli,
-		haproxyConfig: &hp,
-		ticker:        time.NewTicker(tickspeed),
-		Subscribers:   make(map[chan *HaproxyConfig]context.Context),
-		SubscribeChan: make(chan Subscription, 10),
+		cli:             cli,
+		haproxyConfig:   &hp,
+		ticker:          time.NewTicker(tickspeed),
+		Subscribers:     make(map[chan *HaproxyConfig]context.Context),
+		SubscribeChan:   make(chan Subscription, 10),
+		SetTemplateChan: make(chan *template.Template),
 	}
 
 	return &r
@@ -100,7 +102,24 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 			case <-r.ticker.C:
 				r.publishConf(ctx)
 
+			// set the new template concurrency safe
+			case tpl := <-r.SetTemplateChan:
+				r.haproxyConfig.Template = tpl
+
 			}
 		}
 	}()
+}
+
+// set the new template concurrency safe.
+// the new template is used to render the config data
+// after it has been set which may happen after the next tick
+// but is likely to happen before the next tick
+func (r *Reconciler) SetTemplate(rawTemplate string) error {
+	tpl, err := template.New("haproxy.cfg.template").Funcs(sprig.TxtFuncMap()).Parse(rawTemplate)
+	if err != nil {
+		return err
+	}
+	r.SetTemplateChan <- tpl
+	return nil
 }

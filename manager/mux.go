@@ -3,20 +3,15 @@ package main
 import (
 	"log"
 	"net/http"
-	"text/template"
-
-	"github.com/Masterminds/sprig"
 )
 
 func NewMux(reconciler ReconciliationBroker, templatePath string) *http.ServeMux {
 	// initialize a the server
 	mux := http.NewServeMux()
-	// if the template is not parsable, panic and exit
-	configTemplate := template.Must(template.New(TemplateName(templatePath)).Funcs(sprig.TxtFuncMap()).ParseFiles(templatePath))
 
 	// initialize the handlers
-	confHandler := handleGetConfig(reconciler, configTemplate)
-	patchHandler := handlePatchConfig(templatePath, configTemplate)
+	confHandler := handleGetConfig(reconciler)
+	putTemplateHandler := handlePutTemplate(reconciler)
 
 	// mux the handlers
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -27,8 +22,8 @@ func NewMux(reconciler ReconciliationBroker, templatePath string) *http.ServeMux
 			return
 		}
 		// patch the config
-		if r.Method == "PATCH" {
-			patchHandler(w, r)
+		if r.Method == "PUT" {
+			putTemplateHandler(w, r)
 			return
 		}
 		w.WriteHeader(http.StatusMethodNotAllowed)

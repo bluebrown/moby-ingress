@@ -1,2 +1,3 @@
 Dockerfile
 .dockerignore
+assets/test

@@ -1,6 +1,8 @@
 package main
 
-import "strings"
+import (
+	"strings"
+)
 
 func TemplateName(path string) string {
 	parts := strings.Split(path, "/")

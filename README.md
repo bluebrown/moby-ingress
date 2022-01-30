@@ -265,10 +265,10 @@ backend test
 
 #### Update the template at runtime
 
-It is possible to update the template at runtime via patch request.
+It is possible to change the template at runtime via PUT request.
 
 ```shell
-curl -i -X PATCH localhost:8080/update --data-binary @path/to/template
+curl -i -X PUT localhost:8080 --data-binary @path/to/template
 ```
 
 ## Local Development

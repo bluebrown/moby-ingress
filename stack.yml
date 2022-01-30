@@ -25,7 +25,7 @@ services:
       - 8080:8080
     deploy:
       # needs to be on a manager node to read the services
-      placement: { Constraints: ["node.role == manager"] }
+      placement: { constraints: ["node.role == manager"] }
     # manager labels are added to the container
     # instead of the services under the deploy key
     labels:

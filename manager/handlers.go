@@ -3,12 +3,9 @@ package main
 import (
 	"io/ioutil"
 	"net/http"
-	"text/template"
-
-	"github.com/Masterminds/sprig"
 )
 
-func handleGetConfig(recon ReconciliationBroker, templ *template.Template) http.HandlerFunc {
+func handleGetConfig(recon ReconciliationBroker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		hash := r.Header.Get("Config-Hash")
@@ -32,8 +29,7 @@ func handleGetConfig(recon ReconciliationBroker, templ *template.Template) http.
 	}
 }
 
-func handlePatchConfig(templatePath string, configTemplate *template.Template) http.HandlerFunc {
-	templateName := TemplateName(templatePath)
+func handlePutTemplate(recon ReconciliationBroker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// read the new template from the request body
 		body, err := ioutil.ReadAll(r.Body)
@@ -41,23 +37,12 @@ func handlePatchConfig(templatePath string, configTemplate *template.Template) h
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
-		// try to parse the new template
-		newT, err := template.New(templateName).Funcs(sprig.TxtFuncMap()).Parse(string(body))
+		// set the new template
+		err = recon.SetTemplate(string(body))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-		}
-
-		// write the new template to the file
-		if err := ioutil.WriteFile(templatePath, body, 0644); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
-		// if everything went well, store the new template
-		// in the configTemplate variable
-		configTemplate = newT
-
 	}
 
 }
