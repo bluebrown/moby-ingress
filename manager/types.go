@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"text/template"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -23,30 +23,32 @@ type Backend struct {
 	Backend  string            `json:"backend,omitempty"`
 }
 
-// TODO: handle potential errors
-func (c ConfigData) ToJsonBytes() []byte {
-	b, _ := json.Marshal(c)
-	return b
-}
-
 type Reconciliation struct {
 	Config ConfigData
 	Error  error
 }
 
 type Subscription struct {
-	CH  chan Reconciliation
-	Ctx context.Context
+	Ctx  context.Context
+	Hash string
+	CH   chan *HaproxyConfig
+}
+
+type HaproxyConfig struct {
+	Template *template.Template
+	File     []byte
+	Hash     string
+	JSON     []byte
 }
 
 type Reconciler struct {
 	cli           *client.Client
-	tickspeed     time.Duration
 	ticker        *time.Ticker
-	Subscribers   map[chan Reconciliation]context.Context
+	Subscribers   map[chan *HaproxyConfig]context.Context
 	SubscribeChan chan Subscription
+	haproxyConfig *HaproxyConfig
 }
 
 type ReconciliationBroker interface {
-	NextValue(ctx context.Context) (subscription chan Reconciliation)
+	NextValue(ctx context.Context, hash string) (subscription chan *HaproxyConfig)
 }

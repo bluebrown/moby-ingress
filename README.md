@@ -160,14 +160,22 @@ type Backend struct {
 }
 ```
 
-### Configuration
+### Haproxy Configuration File
 
-The configuration can be fetched via the root endpoint of the manager service. The raw data to populate the template is also available in json format.
+The configuration can be fetched via the root endpoint of the manager service. The manager will return the current config immediately if the `Config-Hash` header has not been set or its value is different from the the current configs hash.
+
+The content hash is a md5sum of the current config. It is used to communicate to the server if the client has the current config already. If send hash matches the current config, the manager will respond in a long-polling fashion. That means, it will leave the connection open and not respond at all until the haproxy config file in memory hash changed and a new hash has been computed. This mechanism is meant to avoid sending data across the network that the client already has.
 
 ```shell
-# returns the rendered template
+# immediate response
 curl -i localhost:8080
-# returns the raw json data
+# immediate response if hash does not match, otherwise long polling
+curl -H 'Content-Hash: <md5sum-of-local-config>' localhost:8080
+```
+
+The raw data to populate the template is also available in json format. Since the content hash is the hash of the rendered haproxy config, it is not really meant to be used for the json response. If you still want to use it, you need to read the hash from the response header `Content-Hash` as computing the md5sum of the json content will be always different.
+
+```shell
 curl -i -H 'Accept: application/json' localhost:8080
 ```
 

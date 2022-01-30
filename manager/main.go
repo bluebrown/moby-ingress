@@ -8,8 +8,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig"
 	"github.com/docker/docker/client"
 )
 
@@ -22,16 +24,11 @@ func main() {
 		panic(err)
 	}
 
-	bgCtx := context.Background()
-	ctx, cancel := context.WithCancel(bgCtx)
-
-	rc := NewReconciler(cli, time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
+	rc := NewReconciler(cli, time.Second*30, template.Must(template.New(TemplateName(*templatPath)).Funcs(sprig.TxtFuncMap()).ParseFiles(*templatPath)))
 	rc.Reconcile(ctx)
-
-	server := &http.Server{
-		Handler: NewMux(rc, *templatPath),
-		Addr:    ":8080",
-	}
+	mux := NewMux(rc, *templatPath)
+	server := &http.Server{Addr: ":8080", Handler: mux}
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

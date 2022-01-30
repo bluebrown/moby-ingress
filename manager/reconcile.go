@@ -2,43 +2,62 @@ package main
 
 import (
 	"context"
+	"log"
+	"text/template"
 	"time"
 
 	"github.com/docker/docker/client"
 )
 
-func NewReconciler(cli *client.Client, tickspeed time.Duration) *Reconciler {
-	// the true tickspeed will be set after the first tick
-	// which is seperately handled by the Reconcile function
-	return &Reconciler{
+func NewReconciler(cli *client.Client, tickspeed time.Duration, tpl *template.Template) *Reconciler {
+	hp := HaproxyConfig{}
+	hp.Template = tpl
+	err := hp.Set(ConfigData{})
+	if err != nil {
+		panic(err)
+	}
+
+	r := Reconciler{
 		cli:           cli,
-		tickspeed:     tickspeed,
-		ticker:        time.NewTicker(time.Hour),
-		Subscribers:   make(map[chan Reconciliation]context.Context),
+		haproxyConfig: &hp,
+		ticker:        time.NewTicker(tickspeed),
+		Subscribers:   make(map[chan *HaproxyConfig]context.Context),
 		SubscribeChan: make(chan Subscription, 10),
 	}
+
+	return &r
+
 }
 
 // returns a channel that will receive the a reconciliation on the next tick
 // and is closed afterwards, so it does not receive more than one message
-func (r *Reconciler) NextValue(ctx context.Context) (subscription chan Reconciliation) {
-	subscription = make(chan Reconciliation, 1)
-	r.SubscribeChan <- Subscription{subscription, ctx}
-	return subscription
+func (r *Reconciler) NextValue(ctx context.Context, hash string) (subChan chan *HaproxyConfig) {
+	subChan = make(chan *HaproxyConfig, 1)
+	r.SubscribeChan <- Subscription{ctx, hash, subChan}
+	return subChan
 }
 
+// get the next config data and publish it to all subscribers
+// if the hash hasn't changed, don't publish the data
+// as all subscribers have subscribed with the current hash
 func (r *Reconciler) publishConf(ctx context.Context) {
+	conf, err := CreateConfigData(ctx, r.cli)
+	if err != nil {
+		log.Printf("[ERROR] %s", err)
+		return
+	}
+	oldHash := r.haproxyConfig.Hash
+	r.haproxyConfig.Set(conf)
+	if oldHash == r.haproxyConfig.Hash {
+		return
+	}
 	if len(r.Subscribers) == 0 {
 		return
 	}
-	conf, err := CreateConfigData(ctx, r.cli)
 	for ch, cx := range r.Subscribers {
-		// send the value only if the context is not done
 		if cx.Err() == nil {
-			ch <- Reconciliation{conf, err}
+			ch <- r.haproxyConfig
 		}
-		// close the channel and delete it from the list
-		// afterwards as this is a one-shot channel
 		close(ch)
 		delete(r.Subscribers, ch)
 	}
@@ -49,13 +68,7 @@ func (r *Reconciler) publishConf(ctx context.Context) {
 // each tick will call the publishConf function
 // and publish the config data to all subscribers
 func (r *Reconciler) Reconcile(ctx context.Context) {
-	first := make(chan struct{}, 1)
-
-	go func() {
-		time.Sleep(time.Second * 5)
-		first <- struct{}{}
-	}()
-
+	r.publishConf(ctx)
 	go func() {
 		for {
 			select {
@@ -64,16 +77,22 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 				r.ticker.Stop()
 				return
 
-				// subscribe a subscriber
-			case subscriber := <-r.SubscribeChan:
+			// subscribe a subscriber
+			case subscription := <-r.SubscribeChan:
 				// if the context is already done
 				// close the channel and don't add it to the list
-				if subscriber.Ctx.Err() != nil {
-					close(subscriber.CH)
+				if subscription.Ctx.Err() != nil {
+					close(subscription.CH)
+					continue
+				}
+				// if the hash is not the current hash
+				// send the config immediately
+				if subscription.Hash != r.haproxyConfig.Hash {
+					subscription.CH <- r.haproxyConfig
 					continue
 				}
 				// otherwise, add it to the list
-				r.Subscribers[subscriber.CH] = subscriber.Ctx
+				r.Subscribers[subscription.CH] = subscription.Ctx
 
 			// create the config data on each tick
 			// as long as there is at least one subscriber
@@ -81,11 +100,6 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 			case <-r.ticker.C:
 				r.publishConf(ctx)
 
-			// wait for the first tick and set the actual tickspeed
-			case <-first:
-				r.publishConf(ctx)
-				r.ticker.Reset(r.tickspeed)
-				first = nil
 			}
 		}
 	}()

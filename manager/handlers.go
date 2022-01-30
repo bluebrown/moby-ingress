@@ -2,7 +2,6 @@ package main
 
 import (
 	"io/ioutil"
-	"log"
 	"net/http"
 	"text/template"
 
@@ -10,33 +9,25 @@ import (
 )
 
 func handleGetConfig(recon ReconciliationBroker, templ *template.Template) http.HandlerFunc {
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		hash := r.Header.Get("Config-Hash")
 		select {
 		// if the client closed the connection, return
 		case <-ctx.Done():
 			return
 		// if the reconciliation broker has a new config, return it
-		case reconliiaction := <-recon.NextValue(ctx):
-			if reconliiaction.Error != nil {
-				log.Printf("error getting config: %s", reconliiaction.Error)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+		case hpConf := <-recon.NextValue(ctx, hash):
+			// set the hash header
+			w.Header().Add("Config-Hash", hpConf.Hash)
 			// return json if accept header is application/json
 			if r.Header.Get("Accept") == "application/json" {
 				w.Header().Set("Content-Type", "application/json")
-				w.Write(reconliiaction.Config.ToJsonBytes())
+				w.Write(hpConf.JSON)
 				return
 			}
 			// otherwise render the template
-			err := templ.Execute(w, reconliiaction.Config)
-			if err != nil {
-				log.Printf("ERROR: %s", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+			w.Write(hpConf.File)
 		}
 	}
 }
