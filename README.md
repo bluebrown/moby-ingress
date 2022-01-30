@@ -7,8 +7,6 @@ The manager service is responsible for generating a valid haproxy configuration 
 ## Synopsis
 
 ```yml
-version: "3.9"
-
 services:
   loadbalancer:
     image: swarm-haproxy-loadbalancer
@@ -20,6 +18,8 @@ services:
       - 3000:80 # ingress port
       - 4450:4450 # stats page
       - 9876:9876 # socket cli
+    depends_on:
+      - manager
 
   manager:
     image: swarm-haproxy-manager
@@ -31,11 +31,8 @@ services:
     ports:
       - 8080:8080
     deploy:
-      mode: global
-      placement:
-        constraints:
-          # needs to be on a manager node to read the services
-          - "node.role==manager"
+      # needs to be on a manager node to read the services
+      placement: { constraints: ["node.role == manager"] }
     # manager labels are added to the container
     # instead of the services under the deploy key
     labels:
