@@ -1,28 +1,28 @@
 version: "3.9"
 
 services:
-  loadbalancer:
+  ingress-loadbalancer:
     image: swarm-haproxy-loadbalancer
     environment:
-      MANAGER_ENDPOINT: http://manager:8080/
+      MANAGER_ENDPOINT: http://ingress-manager:6789/
       SCRAPE_INTERVAL: "25"
       STARTUP_DELAY: "5"
     ports:
       - 3000:80 # ingress port
-      - 4450:4450 # stats page
+      - 8765:8765 # stats page
       - 9876:9876 # socket cli
     depends_on:
-      - manager
+      - ingress-manager
 
-  manager:
+  ingress-manager:
     image: swarm-haproxy-manager
     # this is the default template path. the flag is only set here
     # to show how to override the default template path
-    command: --template templates/haproxy.cfg.template
+    command: --template templates/haproxy.cfg.template --log-level debug
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
     ports:
-      - 8080:8080
+      - 6789:6789
     deploy:
       # needs to be on a manager node to read the services
       placement: { constraints: ["node.role == manager"] }
@@ -42,6 +42,7 @@ services:
         retries 1
         retry-on all-retryable-errors
         option redispatch 1
+        default-server check inter 30s
       ingress.frontend.default: |
         bind *:80
         option forwardfor except 127.0.0.1
@@ -52,20 +53,20 @@ services:
     image: nginx
     deploy:
       replicas: 2
-      # service labels are added under the deploy key
-      labels:
-        # the ingress class of the manager
-        ingress.class: haproxy
-        # the application port inside the container (default: 80)
-        ingress.port: "80"
-        # rules are merged with corresponding frontend
-        # the service name is used available in go template format
-        ingress.frontend.default: |
-          default_backend {{ .Name }}
-        # backend snippet are added to the backend created from
-        # this service definition
-        ingress.backend: |
-          balance leastconn
-          option httpchk GET /
-          acl allowed_method method HEAD GET POST
-          http-request deny unless allowed_method
+    # compose service labels are added to the container
+    labels:
+      # the ingress class of the manager
+      ingress.class: haproxy
+      # the application port inside the container (default: 80)
+      ingress.port: "80"
+      # rules are merged with corresponding frontend
+      # the service name is used available in go template format
+      ingress.frontend.default: |
+        default_backend {{ .Name }}
+      # backend snippet are added to the backend created from
+      # this service definition
+      ingress.backend: |
+        balance leastconn
+        option httpchk GET /
+        acl allowed_method method HEAD GET POST
+        http-request deny unless allowed_method

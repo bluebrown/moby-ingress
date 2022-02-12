@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"text/template"
+
+	"github.com/docker/docker/api/types/swarm"
 )
 
 type ConfigData struct {
@@ -17,10 +19,11 @@ type ConfigData struct {
 }
 
 type Backend struct {
-	Port     string            `json:"port,omitempty"`
-	Replicas uint64            `json:"replicas,omitempty"`
-	Frontend map[string]string `json:"-"`
-	Backend  string            `json:"backend,omitempty"`
+	EndpointMode swarm.ResolutionMode `json:"endpoint_mode,omitempty"`
+	Port         string               `json:"port,omitempty"`
+	Replicas     uint64               `json:"replicas,omitempty"`
+	Frontend     map[string]string    `json:"-"`
+	Backend      string               `json:"backend,omitempty"`
 }
 
 type HaproxyConfig struct {

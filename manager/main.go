@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -18,37 +17,42 @@ import (
 )
 
 func main() {
-	templatPath := flag.String("template", "./templates/haproxy.cfg.template", "path to template inside the container")
-	flag.Parse()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		panic(err)
+		log.Fatalf("[ERROR] %s", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	rc := reconcile.NewReconciler(cli, time.Second*30, template.Must(template.New(TemplateName(*templatPath)).Funcs(sprig.TxtFuncMap()).ParseFiles(*templatPath)))
+	rc := reconcile.NewReconciler(
+		cli,
+		time.Second*30,
+		template.Must(template.New(TemplateName(templatPath)).Funcs(sprig.TxtFuncMap()).ParseFiles(templatPath)),
+	)
 	rc.Reconcile(ctx)
-	mux := NewMux(rc, *templatPath)
-	server := &http.Server{Addr: ":8080", Handler: mux}
+
+	mux := NewMux(rc, templatPath)
+	server := &http.Server{Addr: ":" + port, Handler: mux}
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("ERROR: listen: %s\n", err)
+			log.Fatalf("[ERROR] listen: %s\n", err)
 		}
 	}()
 
-	log.Printf("listening on %s\n", server.Addr)
+	log.Printf("[INFO] listening on %s\n", server.Addr)
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	<-done
-	cancel()
 
-	log.Println("Stopping server...")
+	log.Println("[INFO] Stopping server...")
 
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server Shutdown Failed:%+v", err)
+	toCtx, toCancel := context.WithTimeout(ctx, time.Second*5)
+	defer toCancel()
+	if err := server.Shutdown(toCtx); err != nil {
+		log.Fatalf("[ERROR] Server Shutdown Failed:%+v", err)
 	}
 
 }
