@@ -1,4 +1,4 @@
-# Docker Swarm Haproxy Ingress Controller
+# Docker Compose/Swarm Haproxy Ingress Controller
 
 The aim of the project is it to create dynamic ingress rules for swarm services through labels. This allows to create new services and change the haproxy configuration without any downtime or container rebuild.
 
