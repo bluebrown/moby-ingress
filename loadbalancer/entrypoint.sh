@@ -56,7 +56,7 @@ scrape_config() {
 
 # try to fetch the initial config from the manager
 # before booting haproxy to avoid an instant reload
-fetch_config "$MANAGER_ENDPOINT"
+fetch_config "$MANAGER_ENDPOINT" || true
 
 # start a long polling loop to fetch config
 scrape_config "$MANAGER_ENDPOINT" &

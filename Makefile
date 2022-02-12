@@ -1,16 +1,15 @@
-all: loadbalancer.build manager.build stack cli-test
-
-clean:
-	docker service rm test || true
-	docker stack rm my-stack || true
+build: loadbalancer.build manager.build
 
 %.build:
 	docker build -t swarm-haproxy-$* $*/
 
-stack:
-	docker stack deploy -c assets/stack.yml my-stack
+compose:
+	docker compose -f assets/yaml/compose.yml up
 
-cli-test:
+stack:
+	docker stack deploy -c assets/yaml/stack.yml my-stack
+
+cli-service:
 	docker service create \
 		--label 'ingress.class=haproxy' \
 		--label 'ingress.frontend.default=use_backend {{ .Name }} if { path -i -m beg "/test/" }' \

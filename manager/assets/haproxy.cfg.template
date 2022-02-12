@@ -22,7 +22,7 @@ defaults
     {{ .Defaults | indent 4 | trim }}
 
 listen stats
-    bind *:4450
+    bind *:8765
     stats enable
     stats uri /
     stats refresh 15s
@@ -37,7 +37,7 @@ frontend {{$frontend}}
 {{- range $backend, $config := .Backend }}
 backend {{$backend}}
     {{ $config.Backend | indent 4 | trim }}
-    server-template {{ $backend }}- {{ $config.Replicas }} tasks.{{ $backend }}:{{ default "80" $config.Port }} resolvers docker init-addr libc,none check
+    server-template {{ $backend }}- {{ $config.Replicas }} {{ if ne .EndpointMode "dnsrr" }}tasks.{{ end }}{{ $backend }}:{{ default "80" $config.Port }} resolvers docker init-addr libc,none
 {{ end }}
 
 {{ println ""}}

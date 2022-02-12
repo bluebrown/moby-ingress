@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/bluebrown/labelparser v0.0.0-20210715020239-6938c7c15958
 	github.com/docker/docker v20.10.12+incompatible
+	github.com/hashicorp/logutils v1.0.0
 	github.com/mitchellh/mapstructure v1.4.3
 )
 

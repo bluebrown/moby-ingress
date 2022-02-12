@@ -7,29 +7,31 @@ The manager service is responsible for generating a valid haproxy configuration 
 ## Synopsis
 
 ```yml
+version: "3.9"
+
 services:
-  loadbalancer:
+  ingress-loadbalancer:
     image: swarm-haproxy-loadbalancer
     environment:
-      MANAGER_ENDPOINT: http://manager:8080/
+      MANAGER_ENDPOINT: http://ingress-manager:6789/
       SCRAPE_INTERVAL: "25"
       STARTUP_DELAY: "5"
     ports:
       - 3000:80 # ingress port
-      - 4450:4450 # stats page
+      - 8765:8765 # stats page
       - 9876:9876 # socket cli
     depends_on:
-      - manager
+      - ingress-manager
 
-  manager:
+  ingress-manager:
     image: swarm-haproxy-manager
     # this is the default template path. the flag is only set here
     # to show how to override the default template path
-    command: --template templates/haproxy.cfg.template
+    command: --template templates/haproxy.cfg.template --log-level debug
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
     ports:
-      - 8080:8080
+      - 6789:6789
     deploy:
       # needs to be on a manager node to read the services
       placement: { constraints: ["node.role == manager"] }
@@ -49,6 +51,7 @@ services:
         retries 1
         retry-on all-retryable-errors
         option redispatch 1
+        default-server check inter 30s
       ingress.frontend.default: |
         bind *:80
         option forwardfor except 127.0.0.1
@@ -104,7 +107,6 @@ resolvers docker
 
 global
     log          fd@2 local2
-    stats socket /var/run/haproxy.pid mode 600 expose-fd listeners level user
     stats timeout 2m
     {{ .Global | indent 4 | trim }}
 
@@ -115,7 +117,7 @@ defaults
     {{ .Defaults | indent 4 | trim }}
 
 listen stats
-    bind *:4450
+    bind *:8765
     stats enable
     stats uri /
     stats refresh 15s
@@ -130,7 +132,7 @@ frontend {{$frontend}}
 {{- range $backend, $config := .Backend }}
 backend {{$backend}}
     {{ $config.Backend | indent 4 | trim }}
-    server-template {{ $backend }}- {{ $config.Replicas }} tasks.{{ $backend }}:{{ $config.Port }} resolvers docker init-addr libc,none check
+    server-template {{ $backend }}- {{ $config.Replicas }} {{ if ne .EndpointMode "dnsrr" }}tasks.{{ end }}{{ $backend }}:{{ default "80" $config.Port }} resolvers docker init-addr libc,none
 {{ end }}
 
 {{ println ""}}
@@ -138,7 +140,7 @@ backend {{$backend}}
 
 The data types passed into the template have the following format. The ingressClass is used to filter services. That way it is possible to run the separate stacks with separate controllers and a different ingress class if required.
 
-Frontend snippets in the backend struct are executed as template and merged with the frontend config from the ConfigData struct. That is why it is not returned as json and not directly used in the template.
+Frontend snippets in the backend struct are executed as template and merged with the frontend config from the ConfigData struct. That is why it is not returned as json and not directly used in the template. The endpoint mode is used to determine what dns pattern should be used to query the docker dns resolver for the service.
 
 ```go
 type ConfigData struct {
@@ -150,10 +152,11 @@ type ConfigData struct {
 }
 
 type Backend struct {
- Port     string            `json:"port,omitempty"`
- Replicas uint64            `json:"replicas,omitempty"`
- Frontend map[string]string `json:"-"`
- Backend  string            `json:"backend,omitempty"`
+ EndpointMode swarm.ResolutionMode `json:"endpoint_mode,omitempty"`
+ Port         string               `json:"port,omitempty"`
+ Replicas     uint64               `json:"replicas,omitempty"`
+ Frontend     map[string]string    `json:"-"`
+ Backend      string               `json:"backend,omitempty"`
 }
 ```
 
@@ -209,9 +212,10 @@ defaults
     retries 1
     retry-on all-retryable-errors
     option redispatch 1
+    default-server check inter 30s
 
 listen stats
-    bind *:4450
+    bind *:8765
     stats enable
     stats uri /
     stats refresh 15s
@@ -223,19 +227,14 @@ frontend default
     option forwardfor except 127.0.0.1
     option forwardfor header X-Real-IP
     http-request disable-l7-retry unless METH_GET
-    default_backend my-stack_app
-    use_backend test if { path -i -m beg "/test/" }
+    default_backend app
 
-backend my-stack_app
+backend app
     balance leastconn
     option httpchk GET /
     acl allowed_method method HEAD GET POST
     http-request deny unless allowed_method
-    server-template my-stack_app- 2 tasks.my-stack_app:80 resolvers docker init-addr libc,none check
-
-backend test
-    http-request set-path "%[path,regsub(^/test/,/)]"
-    server-template test- 1 tasks.test:80 resolvers docker init-addr libc,none check
+    server-template app- 2 app:80 resolvers docker init-addr libc,none
 ```
 
 ### Example JSON response
@@ -243,20 +242,16 @@ backend test
 ```json
 {
   "global": "spread-checks 15\n",
-  "defaults": "timeout connect 5s\ntimeout check 5s\ntimeout client 2m\ntimeout server 2m\nretries 1\nretry-on all-retryable-errors\noption redispatch 1\n",
+  "defaults": "timeout connect 5s\ntimeout check 5s\ntimeout client 2m\ntimeout server 2m\nretries 1\nretry-on all-retryable-errors\noption redispatch 1\ndefault-server check inter 30s\n",
   "frontend": {
-    "default": "bind *:80\noption forwardfor except 127.0.0.1\noption forwardfor header X-Real-IP\nhttp-request disable-l7-retry unless METH_GET\ndefault_backend my-stack_app\nuse_backend test if { path -i -m beg \"/test/\" }"
+    "default": "bind *:80\noption forwardfor except 127.0.0.1\noption forwardfor header X-Real-IP\nhttp-request disable-l7-retry unless METH_GET\ndefault_backend app\n"
   },
   "backend": {
-    "my-stack_app": {
+    "app": {
+      "endpoint_mode": "dnsrr",
       "port": "80",
       "replicas": 2,
       "backend": "balance leastconn\noption httpchk GET /\nacl allowed_method method HEAD GET POST\nhttp-request deny unless allowed_method\n"
-    },
-    "test": {
-      "port": "80",
-      "replicas": 1,
-      "backend": "http-request set-path \"%[path,regsub(^/test/,/)]\""
     }
   }
 }
@@ -275,12 +270,12 @@ curl -i -X PUT localhost:8080 --data-binary @path/to/template
 If you have the repository locally, you can use the `Makefile` to run a example deployment.
 
 ```shell
-make # build the images deploy a stack and a service
+make build && make stack && make cli-service # build the images deploy a stack and a service
 curl -i "localhost:3000" # backend my-stack_app
 curl -i "localhost:3000/test/" # backend test
-curl -i "localhost:4450" # haproxy stats page
-curl -i "localhost:8080" # rendered template
-curl -i -H 'Accept: application/json' "localhost:8080" # json data
+curl -i "localhost:8765" # haproxy stats page
+curl -i "localhost:6789" # rendered template
+curl -i -H 'Accept: application/json' "localhost:6789" # json data
 make clean # remove the stack and service
 ```
 
@@ -308,3 +303,30 @@ The following commands are valid at this level:
   prompt                                  : toggle interactive mode with prompt
   quit                                    : disconnect
 ```
+
+## Usage with Compose
+
+Compose is supported, note that you must add the labels to the service instead of the deploy key.
+
+```yaml
+app:
+  image: nginx
+  deploy:
+    replicas: 2
+  labels:
+    ingress.class: haproxy
+    ingress.port: "80"
+    ingress.frontend.default: |
+      default_backend {{ .Name }}
+    ingress.backend: |
+      balance leastconn
+      option httpchk GET /
+      acl allowed_method method HEAD GET POST
+      http-request deny unless allowed_method
+```
+
+The controller will search independently from the compose project for services, that means the manager does not have to be deployed as part of the same compose project, the same way it doest have to be part of the same stack when using swarm.
+
+### Limitation
+
+Since the loadbalancer will use network aliases to discover the service via dockers dns resolver, you need to ensure that when loadbalancer across projects, the service names are unique as they will be merged into a single service otherwise. This is not a direct limitation of the controller. It is due to the way dockers networking is implemented and the way compose uses network aliases. The same problem would occur if you were to join 2 compose projects on the same docker network and used the same service name in each project. Dockers dns resolver would give records for all services under the given alias. This is because the project name is not part of the alias.

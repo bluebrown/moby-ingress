@@ -17,7 +17,7 @@ func NewMux(reconciler reconcile.ReconciliationBroker, templatePath string) *htt
 
 	// mux the handlers
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s", r.Method, r.URL)
+		log.Printf("[INFO] %s %s", r.Method, r.URL)
 		// get the config
 		if r.Method == "GET" {
 			confHandler(w, r)
