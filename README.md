@@ -2,44 +2,26 @@
 
 The aim of the project is it to create dynamic ingress rules for swarm services through labels. This allows to create new services and change the haproxy configuration without any downtime or container rebuild.
 
-The manager service is responsible for generating a valid haproxy configuration file from the labels. The loadbalancer instances scrape the configuration periodically and reload the worker "hitless" if the content has changed.
-
 ## Synopsis
 
 ```yml
-version: "3.9"
-
 services:
-  ingress-loadbalancer:
-    image: swarm-haproxy-loadbalancer
-    environment:
-      MANAGER_ENDPOINT: http://ingress-manager:6789/
-      SCRAPE_INTERVAL: "25"
-      STARTUP_DELAY: "5"
-    ports:
-      - 3000:80 # ingress port
-      - 8765:8765 # stats page
-      - 9876:9876 # socket cli
-    depends_on:
-      - ingress-manager
-
-  ingress-manager:
-    image: swarm-haproxy-manager
-    # this is the default template path. the flag is only set here
-    # to show how to override the default template path
-    command: --template templates/haproxy.cfg.template --log-level debug
+  ingress:
+    image: bluebrown/moby-ingress:standalone
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
+    dns:
+      - 127.0.0.11:53
     ports:
-      - 6789:6789
-    deploy:
-      # needs to be on a manager node to read the services
-      placement: { constraints: ["node.role == manager"] }
-    # manager labels are added to the container
-    # instead of the services under the deploy key
+      - published: 8765
+        target: 8765
+        protocol: tcp
+        mode: host
+      - published: 8080
+        target: 8080
+        protocol: tcp
+        mode: host
     labels:
-      # if the ingress class is provided the services are
-      # filtered by the ingress class otherwise all services are checked
       ingress.class: haproxy
       ingress.global: |
         spread-checks 15
@@ -53,27 +35,20 @@ services:
         option redispatch 1
         default-server check inter 30s
       ingress.frontend.default: |
-        bind *:80
+        bind *:8080
         option forwardfor except 127.0.0.1
         option forwardfor header X-Real-IP
         http-request disable-l7-retry unless METH_GET
 
   app:
-    image: nginx
+    image: traefik/whoami
     deploy:
       replicas: 2
-      # service labels are added under the deploy key
       labels:
-        # the ingress class of the manager
         ingress.class: haproxy
-        # the application port inside the container (default: 80)
         ingress.port: "80"
-        # rules are merged with corresponding frontend
-        # the service name is used available in go template format
         ingress.frontend.default: |
           default_backend {{ .Name }}
-        # backend snippet are added to the backend created from
-        # this service definition
         ingress.backend: |
           balance leastconn
           option httpchk GET /
@@ -83,10 +58,54 @@ services:
 
 See the [official haproxy documentation](https://www.haproxy.com/blog/the-four-essential-sections-of-an-haproxy-configuration/) to learn more about haproxy configuration. The settings are identical to the official haproxy version.
 
-Currently it only works when deploying the *backend* services with swarm. The manager can be deployed with a normal container. This is because the labels for the manager are provided on container level while the backends are created from service definitions and their labels.
+## Standalone
 
-> Note
-> *Be careful which ports you publish in production*
+In standalone mode, the ingress service performs service discovery and updates the config if required, like in distributed mode. Additionally it manages a haproxy process to perform the actual loadbalancer. The limitation of this approach is that global, default and the initial frontend configurations can only be changed upon a restart of the ingress container because docker labels cannot be changed on a running container. This can lead to disruptions in the traffic.
+
+```yaml
+services:
+  ingress:
+    image: bluebrown/moby-ingress:standalone
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    dns:
+      - 127.0.0.11:53
+    ports:
+      - published: 8765
+        target: 8765
+        protocol: tcp
+        mode: host
+      - published: 8080
+        target: 8080
+        protocol: tcp
+        mode: host
+```
+
+## Distributed
+
+In the distributed  setup. The work is split into to services. The config server is responsible for generating a valid haproxy configuration file from the labels. The loadbalancer instances scrapes the configuration periodically and reload the worker "hitless" if the content has changed. This allows to loadbalancer instance to run without any interruption even though the configserver may restart for various reasons. The setup comes with more overhead, but offers a more stable and flexible approach.
+
+```yaml
+services:
+  configserver:
+    image: bluebrown/moby-ingress:configserver
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    dns:
+      - 127.0.0.11:53
+  loadbalancer:
+    image: bluebrown/moby-ingress:loadbalancer
+    command: --configserver http://configserver:6789
+    ports:
+      - published: 8765
+        target: 8765
+        protocol: tcp
+        mode: host
+      - published: 8080
+        target: 8080
+        protocol: tcp
+        mode: host
+```
 
 ## Template
 
@@ -126,16 +145,14 @@ listen stats
 
 {{- range $frontend, $config := .Frontend }}
 frontend {{$frontend}}
-    {{$config | indent 4 | trim }}
+    {{ $config | nindent 4 | trim }}
 {{ end }}
 
 {{- range $backend, $config := .Backend }}
 backend {{$backend}}
-    {{ $config.Backend | indent 4 | trim }}
+    {{ $config.Backend | nindent 4 | trim }}
     server-template {{ $backend }}- {{ $config.Replicas }} {{ if ne .EndpointMode "dnsrr" }}tasks.{{ end }}{{ $backend }}:{{ default "80" $config.Port }} resolvers docker init-addr libc,none
 {{ end }}
-
-{{ println ""}}
 ```
 
 The data types passed into the template have the following format. The ingressClass is used to filter services. That way it is possible to run the separate stacks with separate controllers and a different ingress class if required.
@@ -144,27 +161,35 @@ Frontend snippets in the backend struct are executed as template and merged with
 
 ```go
 type ConfigData struct {
- IngressClass string             `json:"-" mapstructure:"class"`
- Global       string             `json:"global,omitempty"`
- Defaults     string             `json:"defaults,omitempty"`
- Frontend     map[string]string  `json:"frontend,omitempty"`
- Backend      map[string]Backend `json:"backend,omitempty"`
+ IngressClass string              `json:"-" mapstructure:"class"`
+ Global       string              `json:"global,omitempty"`
+ Defaults     string              `json:"defaults,omitempty"`
+ Frontend     map[string]string   `json:"frontend,omitempty"`
+ Backend      map[string]*Backend `json:"backend,omitempty"`
 }
 
 type Backend struct {
- EndpointMode swarm.ResolutionMode `json:"endpoint_mode,omitempty"`
- Port         string               `json:"port,omitempty"`
- Replicas     uint64               `json:"replicas,omitempty"`
- Frontend     map[string]string    `json:"-"`
- Backend      string               `json:"backend,omitempty"`
+ EndpointMode string            `json:"endpoint_mode,omitempty"`
+ Port         string            `json:"port,omitempty"`
+ Replicas     uint64            `json:"replicas,omitempty"`
+ Frontend     map[string]string `json:"-"`
+ Backend      string            `json:"backend,omitempty"`
 }
 ```
 
-## Manager API
+### Update the template at runtime
 
-Example HTTP requests can be found in the assets folder.
+It is possible to change the template at runtime via PUT request. The request can be made against the standalone or configserver version.
 
-The configuration can be fetched via the root endpoint of the manager service. The manager will return the current config immediately if the `Config-Hash` header has not been set or its value is different from the the current configs hash.
+```shell
+curl -i -X PUT localhost:6789 --data-binary @path/to/template
+```
+
+## Config Server API
+
+The config server API, is only available when using the config server. The standalone version does not include it as there is not need for this endpoint.
+
+The configuration can be fetched via the root endpoint of the configserver service. The server will return the current config immediately if the `Config-Hash` header has not been set or its value is different from the the current configs hash.
 
 The content hash is a md5sum of the current config. It is used to communicate to the server if the client has the current config already. If send hash matches the current config, the manager will respond in a long-polling fashion. That means, it will leave the connection open and not respond at all until the haproxy config file in memory hash changed and a new hash has been computed. This mechanism is meant to avoid sending data across the network that the client already has.
 
@@ -180,6 +205,8 @@ The raw data to populate the template is also available in json format. Since th
 ```shell
 curl -i -H 'Accept: application/json' localhost:8080
 ```
+
+Example HTTP requests can be found in the assets folder.
 
 ### Example Config Response
 
@@ -237,51 +264,9 @@ backend app
     server-template app- 2 app:80 resolvers docker init-addr libc,none
 ```
 
-### Example JSON response
-
-```json
-{
-  "global": "spread-checks 15\n",
-  "defaults": "timeout connect 5s\ntimeout check 5s\ntimeout client 2m\ntimeout server 2m\nretries 1\nretry-on all-retryable-errors\noption redispatch 1\ndefault-server check inter 30s\n",
-  "frontend": {
-    "default": "bind *:80\noption forwardfor except 127.0.0.1\noption forwardfor header X-Real-IP\nhttp-request disable-l7-retry unless METH_GET\ndefault_backend app\n"
-  },
-  "backend": {
-    "app": {
-      "endpoint_mode": "dnsrr",
-      "port": "80",
-      "replicas": 2,
-      "backend": "balance leastconn\noption httpchk GET /\nacl allowed_method method HEAD GET POST\nhttp-request deny unless allowed_method\n"
-    }
-  }
-}
-```
-
-### Update the template at runtime
-
-It is possible to change the template at runtime via PUT request.
-
-```shell
-curl -i -X PUT localhost:8080 --data-binary @path/to/template
-```
-
-## Local Development
-
-If you have the repository locally, you can use the `Makefile` to run a example deployment.
-
-```shell
-make build && make stack && make cli-service # build the images deploy a stack and a service
-curl -i "localhost:3000" # backend my-stack_app
-curl -i "localhost:3000/test/" # backend test
-curl -i "localhost:8765" # haproxy stats page
-curl -i "localhost:6789" # rendered template
-curl -i -H 'Accept: application/json' "localhost:6789" # json data
-make clean # remove the stack and service
-```
-
 ## Haproxy Socket
 
-If you publish the port 9876 on the loadbalancer you can use `socat` to connect to the socket cli.
+If you publish the port 9876 on the loadbalancer or standalone version you can use `socat` to connect to the socket cli.
 
 ```bash
 $ socat tcp-connect:127.0.0.1:9876 -
@@ -303,30 +288,3 @@ The following commands are valid at this level:
   prompt                                  : toggle interactive mode with prompt
   quit                                    : disconnect
 ```
-
-## Usage with Compose
-
-Compose is supported, note that you must add the labels to the service instead of the deploy key.
-
-```yaml
-app:
-  image: nginx
-  deploy:
-    replicas: 2
-  labels:
-    ingress.class: haproxy
-    ingress.port: "80"
-    ingress.frontend.default: |
-      default_backend {{ .Name }}
-    ingress.backend: |
-      balance leastconn
-      option httpchk GET /
-      acl allowed_method method HEAD GET POST
-      http-request deny unless allowed_method
-```
-
-The controller will search independently from the compose project for services, that means the manager does not have to be deployed as part of the same compose project, the same way it doest have to be part of the same stack when using swarm.
-
-### Limitation
-
-Since the loadbalancer will use network aliases to discover the service via dockers dns resolver, you need to ensure that when loadbalancer across projects, the service names are unique as they will be merged into a single service otherwise. This is not a direct limitation of the controller. It is due to the way dockers networking is implemented and the way compose uses network aliases. The same problem would occur if you were to join 2 compose projects on the same docker network and used the same service name in each project. Dockers dns resolver would give records for all services under the given alias. This is because the project name is not part of the alias.

@@ -16,7 +16,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&logLevel, "log-level", "debug", "log level")
+	flag.StringVar(&logLevel, "log-level", "warn", "log level")
 	flag.StringVar(&templatPath, "template", "./assets/haproxy.cfg.template", "path to template inside the container")
 	flag.BoolVar(&mock, "mock", false, "mock mode")
 
