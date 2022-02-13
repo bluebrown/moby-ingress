@@ -21,8 +21,13 @@ services:
     command: --template templates/haproxy.cfg.template --log-level debug
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
+    dns:
+      - 127.0.0.11:53
     ports:
-      - 6789:6789
+      - published: 6789
+        target: 6789
+        protocol: tcp
+        mode: host
     deploy:
       # needs to be on a manager node to read the services
       placement: { constraints: ["node.role == manager"] }

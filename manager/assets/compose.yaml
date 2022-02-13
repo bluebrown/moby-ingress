@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  ingress:
+    build:
+      context: ../
+      dockerfile: ./prog/standalone/Dockerfile
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    dns:
+      - 127.0.0.11:53
+    ports:
+      - 8765:8765
+      - 8080:8080
+    labels:
+      ingress.class: haproxy
+      ingress.global: |
+        spread-checks 15
+      ingress.defaults: |
+        timeout connect 5s
+        timeout check 5s
+        timeout client 2m
+        timeout server 2m
+        retries 1
+        retry-on all-retryable-errors
+        option redispatch 1
+        default-server check inter 30s
+      ingress.frontend.default: |
+        bind *:8080
+        option forwardfor except 127.0.0.1
+        option forwardfor header X-Real-IP
+        http-request disable-l7-retry unless METH_GET
+
+  app:
+    image: traefik/whoami
+    labels:
+      ingress.class: haproxy
+      ingress.port: "80"
+      ingress.frontend.default: |
+        default_backend {{ .Name }}
+      ingress.backend: |
+        balance leastconn
+        option httpchk GET /
+        acl allowed_method method HEAD GET POST
+        http-request deny unless allowed_method
+    deploy:
+      replicas: 2

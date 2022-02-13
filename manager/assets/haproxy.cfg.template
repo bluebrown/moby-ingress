@@ -31,13 +31,11 @@ listen stats
 
 {{- range $frontend, $config := .Frontend }}
 frontend {{$frontend}}
-    {{$config | indent 4 | trim }}
+    {{ $config | nindent 4 | trim }}
 {{ end }}
 
 {{- range $backend, $config := .Backend }}
 backend {{$backend}}
-    {{ $config.Backend | indent 4 | trim }}
+    {{ $config.Backend | nindent 4 | trim }}
     server-template {{ $backend }}- {{ $config.Replicas }} {{ if ne .EndpointMode "dnsrr" }}tasks.{{ end }}{{ $backend }}:{{ default "80" $config.Port }} resolvers docker init-addr libc,none
 {{ end }}
-
-{{ println ""}}

@@ -12,13 +12,13 @@ import (
 var (
 	templatPath string
 	logLevel    string
-	port        string
+	mock        bool
 )
 
 func init() {
-	flag.StringVar(&logLevel, "log-level", "warn", "log level")
-	flag.StringVar(&templatPath, "template", "./templates/haproxy.cfg.template", "path to template inside the container")
-	flag.StringVar(&port, "port", "6789", "port to listen on")
+	flag.StringVar(&logLevel, "log-level", "debug", "log level")
+	flag.StringVar(&templatPath, "template", "./assets/haproxy.cfg.template", "path to template inside the container")
+	flag.BoolVar(&mock, "mock", false, "mock mode")
 
 	flag.Parse()
 
